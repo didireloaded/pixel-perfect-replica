@@ -1,4 +1,6 @@
 import React, { useState } from "react";
+import ReportDocument from "./ReportDocument";
+import Sheet from "./Sheet";
 import { createPortal } from "react-dom";
 import { exportConversation, redactedInsight } from "./workspace";
 import { explorePatterns } from "./insights";
@@ -14,6 +16,7 @@ export function downloadJSON(data, name) {
   downloadText(JSON.stringify(data, null, 2), name, "application/json");
 }
 export default function ExportPanel({ conversation }) {
+  const [preview, setPreview] = useState(false);
   const [quotes, setQuotes] = useState(false),
     [selected, setSelected] = useState(""),
     [error, setError] = useState("");
@@ -32,10 +35,10 @@ export default function ExportPanel({ conversation }) {
       </p>
       <div className="action-row">
         <button className="secondary" onClick={() => downloadJSON(data, "between-report.json")}>
-          Download report
+          Download report data
         </button>
-        <button className="secondary" onClick={() => window.print()}>
-          Print / Save PDF
+        <button className="primary" onClick={() => setPreview(true)}>
+          Preview report / Save PDF
         </button>
         <button
           className="secondary"
@@ -90,30 +93,24 @@ export default function ExportPanel({ conversation }) {
         </article>
       )}
       {error && <p role="alert">{error}</p>}
+      {preview && (
+        <Sheet label="Your report" onClose={() => setPreview(false)}>
+          <div className="document-preview-toolbar">
+            <p>
+              Choose “Save as PDF” in the print dialog. Use A4, turn off browser headers and
+              footers, and enable background graphics for full colour.
+            </p>
+            <button className="primary" onClick={() => window.print()}>
+              Print / Save PDF
+            </button>
+          </div>
+          <ReportDocument data={data} />
+        </Sheet>
+      )}
       {createPortal(
-        <section className="printable-report">
-          <h1>{data.title}</h1>
-          <p>
-            {data.connection} · {data.coverage.count} messages
-          </p>
-          <p>
-            Source coverage: {data.coverage.first || "No date"} — {data.coverage.last || "No date"}
-          </p>
-          <p>Calculated statistics and keyword observations. Not a determination of intent.</p>
-          {data.findings.map((f) => (
-            <article key={f.title}>
-              <h2>{f.title}</h2>
-              <p>{f.body}</p>
-              {f.excerpts?.map((m) => (
-                <blockquote key={m.id}>
-                  {m.speaker} · {m.date || "No timestamp"}
-                  <p>{m.body}</p>
-                </blockquote>
-              ))}
-              <p>{f.limit}</p>
-            </article>
-          ))}
-        </section>,
+        <div className="printable-report">
+          <ReportDocument data={data} />
+        </div>,
         document.body,
       )}
     </section>

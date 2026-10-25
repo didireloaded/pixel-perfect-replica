@@ -1,0 +1,372 @@
+.report-document {
+  font-family:
+    Inter,
+    -apple-system,
+    BlinkMacSystemFont,
+    "Segoe UI",
+    sans-serif;
+  color: #203a42;
+  line-height: 1.5;
+  text-align: left;
+}
+.document-page {
+  box-sizing: border-box;
+  background: #fff;
+  position: relative;
+  max-width: 794px;
+  margin: 20px auto;
+  min-height: 1050px;
+  padding: 42px 48px;
+  display: flex;
+  flex-direction: column;
+  border: 1px solid #e3e8eb;
+  border-radius: 6px;
+  overflow-wrap: anywhere;
+}
+.document-page .document-header {
+  position: static;
+  display: flex !important;
+  justify-content: space-between;
+  align-items: center;
+  box-shadow: none;
+  border: 0;
+  background: transparent;
+  padding: 0;
+  margin: 0 0 56px;
+  height: auto;
+  gap: 18px;
+}
+.document-header b {
+  font-size: 25px;
+  letter-spacing: -1.2px;
+}
+.document-header span {
+  font-size: 10px;
+  color: #56686d;
+}
+.document-content {
+  flex: 1;
+}
+.document-eyebrow {
+  font-size: 10px;
+  text-transform: uppercase;
+  letter-spacing: 1.8px;
+  color: #56686d;
+}
+.report-document h1 {
+  font-size: 60px;
+  line-height: 1.08;
+  letter-spacing: -2.5px;
+  font-weight: 650;
+  margin: 0;
+  color: #203a42;
+}
+.report-document h2 {
+  font-size: 43px;
+  line-height: 1.12;
+  letter-spacing: -1.6px;
+  color: #203a42;
+  margin: 28px 0 36px;
+  font-weight: 650;
+}
+.report-document h3 {
+  font-size: 17px;
+  margin: 30px 0 16px;
+  color: #203a42;
+}
+.document-cover {
+  background: #edf7f2;
+}
+.document-cover-title {
+  margin: 72px 0 50px;
+}
+.document-cover-title p {
+  font-size: 20px;
+  color: #4f6964;
+  margin-top: 24px;
+}
+.document-cover-stat {
+  display: flex;
+  align-items: center;
+  gap: 28px;
+  border-top: 1px solid #c5dcd2;
+  padding-top: 28px;
+}
+.document-cover-stat strong {
+  font-size: 100px;
+  font-weight: 600;
+  letter-spacing: -5px;
+  line-height: 1.2;
+}
+.document-cover-stat span {
+  font-size: 17px;
+}
+.document-range {
+  margin-top: 50px;
+  font-size: 14px;
+}
+.report-document .document-caption {
+  font-size: 11px;
+  line-height: 1.7;
+  color: #536a70;
+  margin-top: 28px;
+  max-width: 65ch;
+}
+.document-footer {
+  display: flex;
+  justify-content: space-between;
+  gap: 20px;
+  border-top: 1px solid #d5e0df;
+  padding-top: 16px;
+  margin-top: 40px;
+  font-size: 10px;
+  color: #536a70;
+}
+.document-stat-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 16px;
+}
+.document-stat {
+  padding: 24px;
+  border-radius: 20px;
+  display: flex;
+  flex-direction: column;
+}
+.document-stat strong {
+  font-size: 60px;
+  line-height: 1.2;
+  letter-spacing: -2px;
+}
+.document-stat span {
+  font-size: 13px;
+  margin-top: 10px;
+}
+.mint {
+  background: #ddf0e7;
+}
+.lilac {
+  background: #eae3f6;
+}
+.document-share {
+  display: flex;
+  height: 26px;
+  overflow: hidden;
+  border-radius: 8px;
+  margin: 24px 0;
+}
+.document-person {
+  display: flex;
+  justify-content: space-between;
+  gap: 20px;
+  padding: 14px 0;
+  border-bottom: 1px solid #e3e9e8;
+  font-size: 14px;
+}
+.document-person > span {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+.document-person i {
+  width: 12px;
+  height: 12px;
+  border-radius: 50%;
+  display: inline-block;
+}
+.document-person small {
+  font-size: 11px;
+  color: #56686d;
+  margin-left: 12px;
+}
+.document-pattern-index {
+  display: block;
+  font-size: 11px;
+  letter-spacing: 2px;
+  color: #56686d;
+  margin-top: 40px;
+}
+.document-observation {
+  font-size: 23px;
+  line-height: 1.5;
+  margin: 0 0 32px;
+}
+.report-document blockquote {
+  background: #f1f5f8;
+  border: 0;
+  border-left: 3px solid #b9a4d9;
+  border-radius: 0 10px 10px 0;
+  padding: 16px 20px;
+  margin: 18px 0;
+  break-inside: avoid;
+}
+.report-document blockquote p {
+  font-size: 14px;
+  line-height: 1.6;
+  white-space: pre-wrap;
+  margin: 0 0 14px;
+  color: #203a42;
+}
+.report-document cite {
+  font-size: 10px;
+  font-style: normal;
+  color: #536a70;
+}
+.document-limitation {
+  border-top: 1px solid #d5e0df;
+  margin-top: 35px;
+  padding-top: 20px;
+}
+.document-limitation b {
+  font-size: 12px;
+}
+.document-limitation p,
+.document-method p {
+  font-size: 12px;
+  line-height: 1.7;
+  color: #536a70;
+}
+.document-reflection {
+  display: flex;
+  gap: 15px;
+  padding: 15px 0;
+  border-bottom: 1px solid #d5e0df;
+}
+.document-reflection p {
+  font-size: 16px;
+  margin: 0;
+}
+.document-method {
+  margin-top: 70px;
+}
+.document-preview-toolbar {
+  position: sticky;
+  top: 0;
+  background: white;
+  z-index: 2;
+  padding: 12px 0;
+  border-bottom: 1px solid #e3e8eb;
+}
+.document-preview-toolbar p {
+  font-size: 12px;
+  color: #536a70;
+}
+.overlay:has(.report-document) .modal {
+  max-width: 900px;
+  width: 95vw;
+}
+.document-preview-toolbar .primary {
+  margin: 10px 0;
+}
+@media (max-width: 600px) {
+  .document-page {
+    padding: 24px 22px;
+    min-height: 690px;
+  }
+  .document-page .document-header {
+    margin-bottom: 30px;
+  }
+  .document-header span {
+    font-size: 8px;
+  }
+  .report-document h1 {
+    font-size: 38px;
+    letter-spacing: -1.5px;
+  }
+  .report-document h2 {
+    font-size: 30px;
+  }
+  .document-cover-title {
+    margin: 45px 0;
+  }
+  .document-cover-stat {
+    gap: 16px;
+  }
+  .document-cover-stat strong {
+    font-size: 68px;
+  }
+  .document-cover-stat span {
+    font-size: 12px;
+  }
+  .document-observation {
+    font-size: 19px;
+  }
+  .document-stat {
+    padding: 18px;
+  }
+  .document-stat strong {
+    font-size: 42px;
+  }
+}
+@page {
+  size: A4;
+  margin: 0;
+}
+@media print {
+  html,
+  body {
+    margin: 0 !important;
+    padding: 0 !important;
+    background: white !important;
+  }
+  body > * {
+    display: none !important;
+  }
+  body > .printable-report {
+    display: block !important;
+    padding: 0 !important;
+  }
+  .report-document {
+    -webkit-print-color-adjust: exact;
+    print-color-adjust: exact;
+  }
+  .document-page {
+    width: 210mm;
+    max-width: none;
+    min-height: 297mm;
+    margin: 0;
+    padding: 16mm 17mm;
+    border: 0;
+    border-radius: 0;
+    break-after: page;
+  }
+  .document-page:last-child {
+    break-after: auto;
+  }
+  .document-page .document-header {
+    display: flex !important;
+  }
+  .document-content > h1 {
+    font-size: 60px !important;
+  }
+  .document-content > h2 {
+    font-size: 43px !important;
+  }
+  .report-document .document-caption {
+    font-size: 11px !important;
+  }
+  .report-document .document-observation {
+    font-size: 23px !important;
+  }
+  .report-document blockquote p {
+    font-size: 14px !important;
+  }
+  .document-cover-stat strong {
+    font-size: 100px;
+  }
+  .document-stat strong {
+    font-size: 60px;
+  }
+  .document-cover-title {
+    margin: 72px 0 50px;
+  }
+  .document-cover-stat span {
+    font-size: 17px;
+  }
+  .document-page .document-header {
+    margin-bottom: 56px;
+  }
+  .document-page article {
+    break-inside: auto;
+  }
+}
