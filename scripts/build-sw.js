@@ -3,6 +3,7 @@
 // discard active work.
 import { readdir, readFile, writeFile, stat } from "node:fs/promises";
 import { createHash } from "node:crypto";
+import { privacyPolicy } from "../src/privacy-policy.js";
 
 async function exists(p) {
   try {
@@ -45,3 +46,12 @@ self.addEventListener('activate',e=>e.waitUntil(caches.keys().then(keys=>Promise
 self.addEventListener('fetch',e=>{const u=new URL(e.request.url);if(e.request.method!=='GET'||u.origin!==self.location.origin||u.pathname.startsWith('/~oauth'))return;if(e.request.mode==='navigate'){e.respondWith(fetch(e.request).then(r=>{if(r.ok&&u.pathname==='/'){const copy=r.clone();caches.open(CACHE).then(c=>c.put('/',copy));}return r;}).catch(()=>caches.match('/')));return;}if(FILES.includes(u.pathname))e.respondWith(caches.match(e.request,{ignoreSearch:true}).then(r=>r||fetch(e.request)));});`,
 );
 console.log(`sw.js written to ${root} with ${urls.length} assets`);
+
+// Static hosts apply these headers to the app document and parser worker.
+const headersPath = `${root}/_headers`;
+const currentHeaders = (await exists(headersPath)) ? await readFile(headersPath, "utf8") : "";
+await writeFile(
+  headersPath,
+  currentHeaders +
+    `\n/\n  Content-Security-Policy: ${privacyPolicy}\n/assets/import.worker-*\n  Content-Security-Policy: connect-src 'none'; script-src 'self'\n`,
+);

@@ -25,3 +25,7 @@ Statistics include participation, median reply times, starts, streaks, busiest d
 The app lives in `src/between`, loaded after hydration. Run `npm install`, `npm run dev`, `npm run test:between`, `npm test`, and `npm run build`. The production build is under `.output/public`; its generated service worker is disabled in dev and Lovable previews. Keep pushed Git history intact: the main branch syncs both ways with Lovable.
 
 [Lovable project](https://lovable.dev/projects/90555f7e-7d3d-40f7-86df-3596359f90ef)
+
+## Architecture verification
+
+See [PRIVACY.md](PRIVACY.md) for the enforced chat-content boundary and hosting limitations, and [parser compatibility and measured limits](tests/fixtures/compatibility.md) for supported/unsupported examples and real/synthetic measurements. `tests/fixtures` contains one sanitized real derivative and two clearly labelled synthetic format variants. `scripts/benchmark-import.mjs` measures a local export without printing names or text.

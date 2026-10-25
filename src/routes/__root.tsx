@@ -8,10 +8,10 @@ import {
   Scripts,
   type ErrorComponentProps,
 } from "@tanstack/react-router";
-import { useEffect, type ReactNode } from "react";
+import { type ReactNode } from "react";
 
 import appCss from "../styles.css?url";
-import { reportLovableError } from "../lib/lovable-error-reporting";
+import { privacyPolicy } from "../privacy-policy.js";
 
 function NotFoundComponent() {
   return (
@@ -35,12 +35,9 @@ function NotFoundComponent() {
   );
 }
 
-function ErrorComponent({ error, reset }: ErrorComponentProps) {
-  console.error(error);
+function ErrorComponent({ reset }: ErrorComponentProps) {
   const router = useRouter();
-  useEffect(() => {
-    reportLovableError(error, { boundary: "tanstack_root_error_component" });
-  }, [error]);
+  // Do not log or report raw errors: these can contain private chat data.
 
   return (
     <div className="flex min-h-screen items-center justify-center bg-background px-4">
@@ -77,6 +74,9 @@ export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()(
   head: () => ({
     meta: [
       { charSet: "utf-8" },
+      ...(import.meta.env.PROD
+        ? [{ httpEquiv: "Content-Security-Policy", content: privacyPolicy }]
+        : []),
       { name: "viewport", content: "width=device-width, initial-scale=1, viewport-fit=cover" },
       { name: "theme-color", content: "#f5f6fa" },
       { name: "apple-mobile-web-app-capable", content: "yes" },
@@ -86,7 +86,7 @@ export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()(
       { name: "description", content: "On-device conversation insights." },
       { property: "og:type", content: "website" },
       { name: "twitter:card", content: "summary_large_image" },
-          ],
+    ],
     links: [
       {
         rel: "stylesheet",

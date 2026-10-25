@@ -69,7 +69,7 @@ export function parseChat(text, order = "AUTO") {
     lineNumber++;
     const line = raw.replace(/[\u200e\u200f\u202a-\u202e]/g, "");
     const match = line.match(
-      /^\[?(\d{1,4})[/.\-](\d{1,2})[/.\-](\d{1,4}),?\s+(\d{1,2}):(\d{2})(?::(\d{2}))?\s*([AP]M)?\]?\s*(?:-\s*)?([^:]+):\s?(.*)$/i,
+      /^\[?(\d{1,4})[/.\-](\d{1,2})[/.\-](\d{1,4}),?\s+(\d{1,2}):(\d{2})(?::(\d{2}))?\s*([AP]\.?\s*M\.?)?\]?\s*(?:-\s*)?([^:]+):\s?(.*)$/i,
     );
     const plain = line.match(/^([^:\[\]\d][^:]{0,60}):\s+(.+)$/);
     if (match) {
@@ -80,6 +80,7 @@ export function parseChat(text, order = "AUTO") {
         y = +c < 100 ? 2000 + +c : +c;
         [m, d] = dateOrder === "MDY" ? [+a, +b] : [+b, +a];
       }
+      if (amp) amp = amp.replace(/[.\s]/g, "");
       h = +h;
       const invalidHour = amp ? h < 1 || h > 12 : h > 23;
       if (amp) h = (h % 12) + (/pm/i.test(amp) ? 12 : 0);

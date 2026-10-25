@@ -1,0 +1,7 @@
+24/10/2024, 09:00 - Messages and calls are end-to-end encrypted
+24/10/2024, 09:01 - Person A: Hello
+A multiline continuation
+24/10/2024, 09:02 - Person B: Thanks for your help
+25/10/2024, 18:12 - Person A: <Media omitted>
+25/10/2024, 18:13 - Person B: This message was deleted
+25/10/2024, 18:14 - Person A: Can we meet tomorrow?

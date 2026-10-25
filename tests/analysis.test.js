@@ -98,3 +98,13 @@ test("deleted-message placeholders are excluded without removing ordinary discus
   assert.match(r.messages[0].body, /Why/);
   assert.ok(r.warnings.some((w) => /2 deleted-message/.test(w)));
 });
+test("localized dotted Latin meridiem is not mistaken for part of the sender", () => {
+  const r = parseChat(
+    "24/10/2024, 9:00 p. m. - Person A: Hello\n24/10/2024, 10:02 a. m. - Person B: Reply",
+    "DMY",
+  );
+  assert.equal(r.messages.length, 2);
+  assert.equal(r.messages[0].speaker, "Person A");
+  assert.equal(new Date(r.messages[0].date).getHours(), 21);
+  assert.equal(new Date(r.messages[1].date).getHours(), 10);
+});
