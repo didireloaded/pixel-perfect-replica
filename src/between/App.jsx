@@ -1,177 +1,155 @@
-import React, { useState, useMemo, useEffect } from "react";
+import React, { useEffect, useMemo, useState } from "react";
 import {
-  ArrowUpRight,
-  ArrowRight,
-  Plus,
-  MessageCircle,
-  Heart,
-  Users,
   Home,
-  Briefcase,
-  ShieldCheck,
-  Lock,
-  ChevronRight,
-  Upload,
-  X,
-  Check,
-  Download,
-  Trash2,
-  Search,
-  ArrowLeft,
-  Quote,
-  Info,
-  Settings,
   BarChart3,
+  Bookmark,
+  MessageCircle,
+  UserRound,
+  Upload,
+  Search,
+  Plus,
+  ChevronRight,
+  ShieldCheck,
   Smartphone,
+  Info,
+  Download,
+  MoreHorizontal,
   WifiOff,
+  Check,
+  X,
 } from "lucide-react";
-import { statistics, findings } from "./analysis";
 import "./style.css";
+import Profile, { readProfile, ProfileAvatar } from "./Profile";
+import Preferences, { applyPreferences } from "./Preferences";
 import ImportFlow from "./ImportFlow";
 import Overview from "./Overview";
 import PatternsView from "./PatternsView";
 import ConversationView from "./ConversationView";
-import Profile, { readProfile, ProfileAvatar } from "./Profile";
-const categories = [
-  ["All conversations", MessageCircle],
-  ["Relationships", Heart],
-  ["Friendships", Users],
-  ["Family", Home],
-  ["Work", Briefcase],
-];
+import Library from "./Library";
+import Timeline from "./Timeline";
+import Notebook from "./Notebook";
+import AskView from "./AskView";
+import ConversationTools from "./ConversationTools";
+import Sheet from "./Sheet";
+import { downloadJSON } from "./ExportPanel";
+import { explorePatterns } from "./insights";
+import { connectionTypes, mergeImport, revise, exportConversation } from "./workspace";
+import useWorkspace from "./useWorkspace";
+import { statistics } from "./analysis";
 export default function App() {
-  const [profile, setProfile] = useState(readProfile);
-  const [view, setView] = useState("home"),
-    [category, setCategory] = useState("All conversations"),
-    [modal, setModal] = useState(null),
-    [session, setSession] = useState(null),
-    [evidence, setEvidence] = useState(null),
+  const [profile, setProfile] = useState(readProfile),
+    [view, setView] = useState("home"),
     [tab, setTab] = useState("Overview"),
+    [modal, setModal] = useState(null),
+    [evidence, setEvidence] = useState(null),
+    [category, setCategory] = useState("All"),
     [query, setQuery] = useState(""),
-    [question, setQuestion] = useState(""),
-    [answer, setAnswer] = useState(""),
-    [draft, setDraft] = useState(""),
-    [tone, setTone] = useState("Gentle"),
-    [draftGoal, setDraftGoal] = useState("");
-  const [installPrompt, setInstallPrompt] = useState(null);
-  const [offline, setOffline] = useState(!navigator.onLine);
-  const [installStatus, setInstallStatus] = useState("");
+    [importTarget, setImportTarget] = useState(null),
+    [message, setMessage] = useState(""),
+    [browseDate, setBrowseDate] = useState(""),
+    [installPrompt, setInstallPrompt] = useState(null),
+    [offline, setOffline] = useState(!navigator.onLine);
+  const workspace = useWorkspace();
+  const { conversations, session, ready, error, setError } = workspace;
+  const findings = useMemo(() => (session ? explorePatterns(session) : []), [session]);
+  const stats = useMemo(() => statistics(session?.messages || []), [session?.messages]);
   useEffect(() => {
+    applyPreferences();
     const capture = (e) => {
       e.preventDefault();
       setInstallPrompt(e);
     };
     const connection = () => setOffline(!navigator.onLine);
-    const done = () => {
-      setInstallPrompt(null);
-      setInstallStatus("Between is installed.");
-    };
     window.addEventListener("beforeinstallprompt", capture);
     window.addEventListener("online", connection);
     window.addEventListener("offline", connection);
-    window.addEventListener("appinstalled", done);
     return () => {
       window.removeEventListener("beforeinstallprompt", capture);
       window.removeEventListener("online", connection);
       window.removeEventListener("offline", connection);
-      window.removeEventListener("appinstalled", done);
     };
   }, []);
-  async function install() {
-    if (installPrompt) {
-      await installPrompt.prompt();
-      const choice = await installPrompt.userChoice;
-      setInstallStatus(
-        choice.outcome === "accepted" ? "Installation requested." : "You can install later.",
-      );
-      setInstallPrompt(null);
-    } else
-      setInstallStatus(
-        "On iPhone: open in Safari, tap Share, then Add to Home Screen. On supported desktop or Android browsers, use the browser’s Install app option. Installation requires HTTPS or localhost.",
-      );
+  useEffect(() => {
+    if (!message) return;
+    const timer = setTimeout(() => setMessage(""), 6000);
+    return () => clearTimeout(timer);
+  }, [message]);
+  function openImport(target = null) {
+    setImportTarget(target);
+    setModal("import");
   }
-  function openDestination(next) {
+  function destination(next) {
     setView("report");
     setTab(next);
     setModal(null);
-    window.scrollTo(0, 0);
+    window.scrollTo({ top: 0, behavior: "instant" });
   }
-  const messages = session?.messages || [];
-  const stats = useMemo(() => statistics(messages), [messages]);
-  const insights = useMemo(() => findings(messages), [messages]);
-  function openImport() {
-    setModal("import");
+  function open(id) {
+    workspace.setActiveId(id);
+    destination("Overview");
   }
-  function completeImport(next) {
-    if (
-      session &&
-      !window.confirm("Replace the current report? Export it first if you want to keep it.")
+  async function update(transform) {
+    if (!session) throw new Error("Select a conversation first.");
+    return workspace.update(session.id, transform);
+  }
+  async function completeImport(input) {
+    if (importTarget) {
+      const current = conversations.find((c) => c.id === importTarget);
+      if (!current) throw new Error("The conversation is no longer available.");
+      const result = mergeImport(current, input);
+      if (result.added) await workspace.update(current.id, () => result.conversation);
+      workspace.setActiveId(current.id);
+      setMessage(result.added ? `${result.added} new messages added` : "No new messages found");
+    } else {
+      workspace.add(input);
+      setMessage("Conversation imported");
+    }
+    setModal(null);
+    destination("Overview");
+  }
+  async function deleteConversation() {
+    try {
+      await workspace.remove(session.id);
+      setEvidence(null);
+      setModal(null);
+      setView("home");
+      setMessage("Conversation and derived data removed");
+    } catch (e) {
+      setError(e.message);
+    }
+  }
+  async function install() {
+    if (installPrompt) {
+      await installPrompt.prompt();
+      const result = await installPrompt.userChoice;
+      setInstallPrompt(null);
+      setMessage(
+        result.outcome === "accepted" ? "Installation requested" : "You can install later",
+      );
+    } else
+      setMessage(
+        "iPhone: Safari → Share → Add to Home Screen. Android/desktop: use your browser’s Install option.",
+      );
+  }
+  async function toggleBookmark(id) {
+    try {
+      await update((c) => ({
+        ...c,
+        bookmarks: c.bookmarks.includes(id)
+          ? c.bookmarks.filter((x) => x !== id)
+          : [...c.bookmarks, id],
+      }));
+    } catch (e) {
+      setError(e.message);
+    }
+  }
+  const recent = conversations
+    .filter(
+      (c) =>
+        (category === "All" || c.connection === category) &&
+        `${c.title} ${c.filename}`.toLowerCase().includes(query.toLowerCase()),
     )
-      return;
-    setSession(next);
-    setModal(null);
-    setView("report");
-    setTab("Overview");
-    setAnswer("");
-    setQuestion("");
-    setDraft("");
-    setDraftGoal("");
-    setEvidence(null);
-  }
-  function remove() {
-    setSession(null);
-    setAnswer("");
-    setDraft("");
-    setQuestion("");
-    setQuery("");
-    setDraftGoal("");
-    setEvidence(null);
-    setModal(null);
-    setView("home");
-  }
-
-  function exportReport() {
-    const out = [
-      "BETWEEN — Local conversation report",
-      "Imported conversation",
-      `${stats.total} messages · ${stats.people.length} participants`,
-      "Calculated statistics and keyword matches.",
-      ...insights.flatMap((f) => [
-        f.title,
-        f.body,
-        ...f.ids.map((id) => {
-          const m = messages.find((x) => x.id === id);
-          return `${m.speaker} · ${m.date || "No timestamp"}: ${m.body}`;
-        }),
-        f.limit,
-      ]),
-      "User-provided context: " + (session?.context || "None"),
-      "No conclusion here establishes another person’s feelings.",
-    ].join("\n\n");
-    const url = URL.createObjectURL(new Blob([out], { type: "text/plain" }));
-    const a = document.createElement("a");
-    a.href = url;
-    a.download = "between-report.txt";
-    a.click();
-    URL.revokeObjectURL(url);
-  }
-  function ask(q) {
-    setQuestion(q);
-    const terms = q
-      .toLowerCase()
-      .split(/\W+/)
-      .filter((t) => t.length > 3);
-    const hits = messages
-      .filter((m) => terms.some((t) => m.body.toLowerCase().includes(t)))
-      .slice(0, 3);
-    setAnswer(
-      hits.length
-        ? "These messages match words in your question. Open each excerpt and review the context. "
-        : "No matching evidence was found by local keyword search. Try a word from the conversation.",
-    );
-    setEvidence(hits.length ? hits.map((m) => m.id) : null);
-  }
-
+    .slice(0, 4);
   return (
     <div className="app">
       <div className="main">
@@ -182,7 +160,6 @@ export default function App() {
             onClick={(e) => {
               e.preventDefault();
               setView("home");
-              window.scrollTo(0, 0);
             }}
           >
             <span className="brand-icon">
@@ -191,604 +168,488 @@ export default function App() {
             </span>
             between
           </a>
-          <div className="header-actions">
-            <button
-              className="user-avatar"
-              aria-label="Edit profile"
-              onClick={() => setView("settings")}
-            >
-              <ProfileAvatar profile={profile} />
-            </button>
-          </div>
+          <button
+            className="user-avatar"
+            aria-label="Edit profile"
+            onClick={() => setView("profile")}
+          >
+            <ProfileAvatar profile={profile} />
+          </button>
         </header>
         {offline && (
           <div className="offline-banner">
-            <WifiOff size={15} />
-            Offline · local imports and reports still work
+            <WifiOff size={16} />
+            Offline · device features available
+          </div>
+        )}
+        {error && (
+          <div className="workspace-error" role="alert">
+            <span>{error}</span>
+            <button aria-label="Dismiss error" onClick={() => setError("")}>
+              <X size={16} />
+            </button>
+          </div>
+        )}
+        {message && (
+          <div className="toast" role="status">
+            <Check size={16} />
+            <span>{message}</span>
           </div>
         )}
         <main>
-          {view === "home" && (
+          {!ready ? (
+            <div className="empty">
+              <p>Opening your workspace…</p>
+            </div>
+          ) : (
             <>
-              <section className="home-heading">
-                <h1>{profile.name ? `Hey, ${profile.name.split(/\s+/)[0]}` : "Home"}</h1>
-              </section>
-              <label className="home-search">
-                <Search size={19} />
-                <input
-                  aria-label="Search your chats"
-                  placeholder="Search chats"
-                  value={query}
-                  onChange={(e) => {
-                    setQuery(e.target.value);
-                    setView("history");
-                  }}
-                />
-              </label>
-              <section className="home-actions" aria-label="Quick actions">
-                <button className="import-tile" onClick={openImport}>
-                  <span className="quick-icon blue">
-                    <Upload size={22} />
-                  </span>
-                  <span>
-                    <strong>Import chat</strong>
-                    <small>WhatsApp ZIP or text</small>
-                  </span>
-                  <Plus size={19} />
-                </button>
-                <div className="home-tools">
-                  <button onClick={() => openDestination("Conversation")}>
-                    <Search size={21} />
-                    <span>Search messages</span>
-                  </button>
-                  <button
-                    onClick={() => {
-                      openDestination("Ask & reflect");
-                      setTimeout(
-                        () =>
-                          document
-                            .querySelector(".draft-section")
-                            ?.scrollIntoView({
-                              behavior: window.matchMedia("(prefers-reduced-motion: reduce)")
-                                .matches
-                                ? "auto"
-                                : "smooth",
-                            }),
-                        0,
-                      );
-                    }}
-                  >
-                    <MessageCircle size={21} />
-                    <span>Draft a reply</span>
-                  </button>
-                </div>
-              </section>
-              <div className="section-heading">
-                <h2>Your chats</h2>
-                <button onClick={() => setView("history")}>
-                  See all <ChevronRight size={15} />
-                </button>
-              </div>
-              <div className="filter-tabs">
-                {categories.map(([name, Icon]) => (
-                  <button
-                    className={category === name ? "selected" : ""}
-                    key={name}
-                    onClick={() => setCategory(name)}
-                  >
-                    {name === "All conversations" ? "All" : name}
-                  </button>
-                ))}
-              </div>
-              {session && (category === "All conversations" || session.connection === category) ? (
-                <button
-                  className="chat-row"
-                  onClick={() => {
-                    setView("report");
-                    setTab("Overview");
-                  }}
-                >
-                  <span className="duo-avatar">
-                    <span>{stats.people[0]?.[0]}</span>
-                    <span>{stats.people[1]?.[0]}</span>
-                  </span>
-                  <span className="chat-row-copy">
-                    <strong>{stats.people.join(" & ")}</strong>
-                    <small>
-                      {stats.total} messages · {session.filename}
-                    </small>
-                  </span>
-                  <ChevronRight size={18} />
-                </button>
-              ) : (
-                <button className="add-chat-row" onClick={openImport}>
-                  <span className="dashed-icon">
-                    <Plus size={22} />
-                  </span>
-                  <span>
-                    <strong>
-                      {category === "All conversations"
-                        ? "Add your first conversation"
-                        : `Add a ${category.toLowerCase().replace(/s$/, "")} chat`}
-                    </strong>
-                  </span>
-                  <ChevronRight size={18} />
-                </button>
-              )}
-            </>
-          )}
-          {view === "settings" && (
-            <>
-              <div className="screen-title">
-                <h1>Settings</h1>
-              </div>
-              <Profile profile={profile} onSave={setProfile} />
-              <section className="settings-group">
-                <h3>App</h3>
-                <button className="settings-row" onClick={install}>
-                  <span className="quick-icon blue">
-                    <Smartphone size={21} />
-                  </span>
-                  <span>
-                    <strong>Add to Home Screen</strong>
-                  </span>
-                  <ChevronRight size={18} />
-                </button>
-                {installStatus && (
-                  <p className="install-status" role="status">
-                    {installStatus}
-                  </p>
-                )}
-                <button className="settings-row" onClick={() => setModal("privacy")}>
-                  <span className="quick-icon violet">
-                    <ShieldCheck size={21} />
-                  </span>
-                  <span>
-                    <strong>Privacy & storage</strong>
-                    <small>Conversation data stays in tab memory</small>
-                  </span>
-                  <ChevronRight size={18} />
-                </button>
-                <button className="settings-row" onClick={() => setModal("about")}>
-                  <span className="quick-icon pink">
-                    <Info size={21} />
-                  </span>
-                  <span>
-                    <strong>About Between</strong>
-                  </span>
-                  <ChevronRight size={18} />
-                </button>
-              </section>
-              <section className="settings-group">
-                <h3>Your data</h3>
-                <p className="settings-description">
-                  Refreshing or closing clears your conversation. Installing the app does not save
-                  chats. The offline app shell stores only application files.
-                </p>
-                <button
-                  className="settings-row danger"
-                  disabled={!session}
-                  onClick={() => setModal("delete")}
-                >
-                  <Trash2 size={21} />
-                  <span>
-                    <strong>Clear conversation</strong>
-                    <small>Remove the current report and drafts</small>
-                  </span>
-                  <ChevronRight size={18} />
-                </button>
-              </section>
-            </>
-          )}
-          {view === "history" && (
-            <>
-              <div className="page-intro">
-                <div>
-                  <h1>Chats</h1>
-                </div>
-                <button className="primary" onClick={openImport}>
-                  <Plus size={17} />
-                  New conversation
-                </button>
-              </div>
-              <label className="searchbox">
-                <Search size={17} />
-                <input
-                  value={query}
-                  onChange={(e) => setQuery(e.target.value)}
-                  placeholder="Search participants"
-                />
-              </label>
-              {session && stats.people.join(" ").toLowerCase().includes(query.toLowerCase()) ? (
-                <button className="history-card" onClick={() => setView("report")}>
-                  <span className="feature-icon">
-                    <MessageCircle />
-                  </span>
-                  <div>
-                    <h3>{stats.people.join(" & ")}</h3>
-                    <p>
-                      {stats.total} messages · {session.filename}
-                    </p>
-                  </div>
-                  <ArrowRight />
-                </button>
-              ) : (
-                <div className="empty">
-                  <MessageCircle size={35} />
-                  <h3>{query ? "No matching conversations" : "No chats yet."}</h3>
-                  <p>Import a chat to get started.</p>
-                  <button className="primary" onClick={openImport}>
-                    Add a conversation <Plus size={16} />
-                  </button>
-                </div>
-              )}
-            </>
-          )}
-          {view === "report" && !session && (
-            <section className="empty">
-              <MessageCircle size={34} />
-              <h2>{tab === "Ask & reflect" ? "Ask & reflect" : "Insights"}</h2>
-              <p>Import a chat to get started.</p>
-              <button className="primary" onClick={openImport}>
-                Import chat
-                <Upload size={17} />
-              </button>
-            </section>
-          )}
-          {view === "report" && session && (
-            <>
-              <button className="back" onClick={() => setView("home")}>
-                <ArrowLeft size={15} />
-                Home
-              </button>
-              <div className="report-heading">
-                <div>
-                  <div className="eyebrow">{session.filename}</div>
-                  <h1>{stats.people.join(" & ")}</h1>
-                  <p>
-                    {stats.total} messages · {Object.keys(stats.days).length} active days ·{" "}
-                    {session.focus}
-                  </p>
-                </div>
-                <div className="report-actions">
-                  <button className="secondary" onClick={exportReport}>
-                    <Download size={16} />
-                    Export report
-                  </button>
-                  <button
-                    className="icon-button"
-                    aria-label="Delete conversation"
-                    onClick={() => setModal("delete")}
-                  >
-                    <Trash2 size={18} />
-                  </button>
-                </div>
-              </div>
-              <div className="category-tabs report-tabs">
-                {["Overview", "Patterns & evidence", "Conversation", "Ask & reflect"].map((t) => (
-                  <button className={tab === t ? "chosen" : ""} key={t} onClick={() => setTab(t)}>
-                    {t}
-                  </button>
-                ))}
-              </div>
-              {tab === "Overview" && <Overview messages={messages} onEvidence={setEvidence} />}{" "}
-              {tab === "Patterns & evidence" && (
-                <PatternsView
-                  findings={insights}
-                  onEvidence={setEvidence}
-                  context={session.context}
-                  onContext={(context) => setSession({ ...session, context })}
-                />
-              )}{" "}
-              {tab === "Conversation" && (
-                <ConversationView messages={messages} onEvidence={setEvidence} />
-              )}
-              {tab === "Ask & reflect" && (
-                <div className="reflect-grid">
-                  <section className="stats-card">
-                    <Search size={25} />
-                    <h2>Ask your chat</h2>
-                    <p>Search the imported messages by keyword.</p>
-                    <div className="suggested">
-                      {[
-                        "What supports this interpretation?",
-                        "What did we say about work?",
-                        "Where did we say thank you?",
-                      ].map((q) => (
-                        <button key={q} onClick={() => ask(q)}>
-                          {q}
-                          <ArrowUpRight size={14} />
-                        </button>
-                      ))}
-                    </div>
-                    <form
-                      onSubmit={(e) => {
-                        e.preventDefault();
-                        ask(question);
-                      }}
-                    >
-                      <label>
-                        Search the conversation
-                        <input
-                          value={question}
-                          onChange={(e) => setQuestion(e.target.value)}
-                          placeholder="Find a word or topic…"
-                          required
-                        />
-                      </label>
-                      <button className="primary" type="submit">
-                        Find evidence <Search size={15} />
-                      </button>
-                    </form>
-                    {answer && (
-                      <p className="answer" role="status">
-                        {answer}
-                      </p>
-                    )}
+              {view === "home" && (
+                <>
+                  <section className="home-heading">
+                    <h1>{profile.name ? `Hey, ${profile.name.split(/\s+/)[0]}` : "Home"}</h1>
                   </section>
-                  <section className="stats-card draft-section">
-                    <MessageCircle size={25} />
-                    <h2>Draft a reply</h2>
-                    <p>Editable template.</p>
-                    <label>
-                      What would you like to talk about?
-                      <input
-                        value={draftGoal}
-                        onChange={(e) => setDraftGoal(e.target.value)}
-                        placeholder="Making more time to talk"
-                      />
-                    </label>
-                    <label>
-                      How should it sound?
-                      <select value={tone} onChange={(e) => setTone(e.target.value)}>
-                        {["Gentle", "Direct", "Brief"].map((t) => (
-                          <option key={t}>{t}</option>
-                        ))}
-                      </select>
-                    </label>
+                  <label className="home-search">
+                    <Search size={18} />
+                    <input
+                      aria-label="Search conversations"
+                      placeholder="Search conversations"
+                      value={query}
+                      onChange={(e) => setQuery(e.target.value)}
+                    />
+                  </label>
+                  <section className="home-actions">
+                    <button className="import-tile" onClick={() => openImport()}>
+                      <span className="quick-icon blue">
+                        <Upload size={22} />
+                      </span>
+                      <span>
+                        <strong>Import chat</strong>
+                        <small>WhatsApp ZIP or text</small>
+                      </span>
+                      <Plus size={19} />
+                    </button>
+                    <div className="home-tools">
+                      <button onClick={() => destination("Conversation")}>
+                        <Search size={20} />
+                        <span>Search messages</span>
+                      </button>
+                      <button onClick={() => destination("Timeline")}>
+                        <BarChart3 size={20} />
+                        <span>Explore timeline</span>
+                      </button>
+                    </div>
+                  </section>
+                  <div className="section-heading">
+                    <h2>Your conversations</h2>
+                    <button onClick={() => setView("library")}>
+                      See all
+                      <ChevronRight size={15} />
+                    </button>
+                  </div>
+                  <div className="filter-tabs">
+                    {["All", ...connectionTypes].map((t) => (
+                      <button
+                        key={t}
+                        className={category === t ? "selected" : ""}
+                        onClick={() => setCategory(t)}
+                      >
+                        {t}
+                      </button>
+                    ))}
+                  </div>
+                  {recent.length ? (
+                    recent.map((c) => (
+                      <button className="library-row" key={c.id} onClick={() => open(c.id)}>
+                        <span className="duo-avatar">
+                          <span>{c.messages[0]?.speaker[0]}</span>
+                          <span>{[...new Set(c.messages.map((m) => m.speaker))][1]?.[0]}</span>
+                        </span>
+                        <span>
+                          <strong>{c.title}</strong>
+                          <small>
+                            {c.connection} · {c.messages.length.toLocaleString()} messages
+                          </small>
+                          <small>{c.saved ? "Saved on device" : "Temporary session"}</small>
+                        </span>
+                        <ChevronRight size={16} />
+                      </button>
+                    ))
+                  ) : (
+                    <button className="add-chat-row" onClick={() => openImport()}>
+                      <span className="dashed-icon">
+                        <Plus size={22} />
+                      </span>
+                      <strong>{query ? "No matching conversations" : "Add a conversation"}</strong>
+                      <ChevronRight size={17} />
+                    </button>
+                  )}
+                </>
+              )}
+              {(view === "library" || view === "saved") && (
+                <Library
+                  key={view}
+                  conversations={conversations}
+                  savedOnly={view === "saved"}
+                  onOpen={open}
+                  onEvidence={(id, ids) => {
+                    workspace.setActiveId(id);
+                    setEvidence(ids);
+                  }}
+                  onImport={() => openImport()}
+                />
+              )}
+              {view === "profile" && (
+                <>
+                  <div className="screen-title">
+                    <h1>Profile</h1>
+                  </div>
+                  <Profile profile={profile} onSave={setProfile} />
+                  <Preferences />
+                  <section className="settings-group">
+                    <h3>App & data</h3>
+                    <button className="settings-row" onClick={install}>
+                      <Smartphone size={20} />
+                      <strong>Add to Home Screen</strong>
+                      <ChevronRight size={16} />
+                    </button>
+                    <button className="settings-row" onClick={() => setModal("privacy")}>
+                      <ShieldCheck size={20} />
+                      <strong>Privacy & storage</strong>
+                      <ChevronRight size={16} />
+                    </button>
                     <button
-                      className="primary"
-                      disabled={!draftGoal.trim()}
+                      className="settings-row"
                       onClick={() =>
-                        setDraft(
-                          tone === "Brief"
-                            ? `Can we talk about ${draftGoal}? I'd like to hear your perspective.`
-                            : tone === "Direct"
-                              ? `I'd like us to talk about ${draftGoal}. It matters to me, and I want to understand how you see it. When would be a good time?`
-                              : `I've been thinking about ${draftGoal}, and I'd love to talk when we both have a little space. I want to understand your perspective, too.`,
+                        downloadJSON(
+                          conversations.map((c) => exportConversation(c, { quotes: true })),
+                          "between-data.json",
                         )
                       }
+                      disabled={!conversations.length}
                     >
-                      Create a starting point <ArrowRight size={15} />
+                      <Download size={20} />
+                      <strong>Export all my data</strong>
+                      <ChevronRight size={16} />
                     </button>
-                    {draft && (
-                      <label>
-                        Your editable draft
-                        <textarea value={draft} onChange={(e) => setDraft(e.target.value)} />
-                        <small>Nothing is sent automatically.</small>
-                      </label>
+                    <button className="settings-row" onClick={() => setModal("about")}>
+                      <Info size={20} />
+                      <strong>About Between</strong>
+                      <ChevronRight size={16} />
+                    </button>
+                  </section>
+                </>
+              )}
+              {view === "report" && !session && (
+                <div className="empty">
+                  <MessageCircle size={33} />
+                  <h2>{tab === "Ask & reflect" ? "Ask & reflect" : "Insights"}</h2>
+                  <p>Open a conversation or import a new one.</p>
+                  <div className="action-row">
+                    <button className="primary" onClick={() => openImport()}>
+                      Import chat
+                      <Upload size={17} />
+                    </button>
+                    <button className="secondary" onClick={() => setView("library")}>
+                      Conversations
+                    </button>
+                  </div>
+                </div>
+              )}
+              {view === "report" && session && (
+                <>
+                  <div className="report-heading">
+                    <div>
+                      <div className="eyebrow">
+                        {session.connection} · {session.saved ? "SAVED ON DEVICE" : "TEMPORARY"}
+                      </div>
+                      <h1>{session.title}</h1>
+                      <p>
+                        {stats.total.toLocaleString()} messages · {Object.keys(stats.days).length}{" "}
+                        active days · You: {session.self}
+                      </p>
+                    </div>
+                    <button
+                      className="icon-button"
+                      aria-label="Manage conversation"
+                      onClick={() =>
+                        document.querySelector(".conversation-tools")?.setAttribute("open", "")
+                      }
+                    >
+                      <MoreHorizontal size={22} />
+                    </button>
+                  </div>
+                  <ConversationTools
+                    key={session.id}
+                    conversation={session}
+                    onUpdate={update}
+                    onImportUpdate={() => openImport(session.id)}
+                    onDelete={() => setModal("delete")}
+                  />
+                  <div
+                    className="category-tabs report-tabs"
+                    role="tablist"
+                    aria-label="Report sections"
+                  >
+                    {[
+                      "Overview",
+                      "Patterns & evidence",
+                      "Timeline",
+                      "Conversation",
+                      "Ask & reflect",
+                      "Notes & goals",
+                    ].map((t) => (
+                      <button
+                        role="tab"
+                        aria-selected={tab === t}
+                        key={t}
+                        className={tab === t ? "chosen" : ""}
+                        onClick={() => {
+                          setTab(t);
+                          setBrowseDate("");
+                        }}
+                      >
+                        {t}
+                      </button>
+                    ))}
+                  </div>
+                  <section role="tabpanel" aria-label={tab}>
+                    {tab === "Overview" && (
+                      <>
+                        <article className="conversation-summary">
+                          <h2>At a glance</h2>
+                          <p>
+                            {session.title} includes {stats.total.toLocaleString()} text messages
+                            from {stats.people.length} participants, across{" "}
+                            {Object.keys(stats.days).length} active days.{" "}
+                            {findings
+                              .slice(0, 2)
+                              .map((f) => f.body)
+                              .join(" ")}
+                          </p>
+                          <button
+                            className="text-button"
+                            onClick={() => setTab("Patterns & evidence")}
+                          >
+                            Explore the evidence
+                            <ChevronRight size={15} />
+                          </button>
+                        </article>
+                        <Overview
+                          messages={session.messages}
+                          onEvidence={setEvidence}
+                          onBrowse={(date) => {
+                            setBrowseDate(date);
+                            setTab("Conversation");
+                          }}
+                        />
+                        <div className="action-row">
+                          <button className="secondary" onClick={() => setTab("Timeline")}>
+                            Compare periods
+                          </button>
+                          <button className="secondary" onClick={() => setTab("Notes & goals")}>
+                            Notes & goals
+                          </button>
+                        </div>
+                      </>
+                    )}
+                    {tab === "Patterns & evidence" && (
+                      <PatternsView
+                        findings={findings}
+                        onEvidence={setEvidence}
+                        conversation={session}
+                        onUpdate={update}
+                      />
+                    )}{" "}
+                    {tab === "Timeline" && (
+                      <Timeline
+                        key={session.id}
+                        conversation={session}
+                        onUpdate={update}
+                        onEvidence={setEvidence}
+                        onBrowse={(date) => {
+                          setBrowseDate(date);
+                          setTab("Conversation");
+                        }}
+                      />
+                    )}{" "}
+                    {tab === "Conversation" && (
+                      <ConversationView
+                        key={`${session.id}-${browseDate}`}
+                        messages={session.messages}
+                        initialDate={browseDate}
+                        onEvidence={setEvidence}
+                      />
+                    )}{" "}
+                    {tab === "Ask & reflect" && (
+                      <AskView
+                        key={session.id}
+                        conversation={session}
+                        onUpdate={update}
+                        onEvidence={setEvidence}
+                      />
+                    )}{" "}
+                    {tab === "Notes & goals" && (
+                      <Notebook conversation={session} onUpdate={update} onEvidence={setEvidence} />
                     )}
                   </section>
-                </div>
+                </>
               )}
             </>
           )}
         </main>
         <nav className="tab-bar" aria-label="Main navigation">
-          <button
-            aria-current={view === "home" ? "page" : undefined}
-            className={view === "home" ? "active" : ""}
-            onClick={() => {
-              setView("home");
-              window.scrollTo(0, 0);
-            }}
-          >
-            <Home size={22} />
-            <span>Home</span>
-          </button>
-          <button
-            aria-current={view === "history" ? "page" : undefined}
-            className={view === "history" ? "active" : ""}
-            onClick={() => {
-              setView("history");
-              window.scrollTo(0, 0);
-            }}
-          >
-            <MessageCircle size={22} />
-            <span>Chats</span>
-          </button>
-          <button
-            aria-current={view === "report" && tab !== "Ask & reflect" ? "page" : undefined}
-            className={view === "report" && tab !== "Ask & reflect" ? "active" : ""}
-            onClick={() => openDestination("Overview")}
-          >
-            <BarChart3 size={22} />
-            <span>Insights</span>
-          </button>
-          <button
-            aria-current={view === "report" && tab === "Ask & reflect" ? "page" : undefined}
-            className={view === "report" && tab === "Ask & reflect" ? "active" : ""}
-            onClick={() => openDestination("Ask & reflect")}
-          >
-            <Search size={22} />
-            <span>Ask</span>
-          </button>
-          <button
-            aria-current={view === "settings" ? "page" : undefined}
-            className={view === "settings" ? "active" : ""}
-            onClick={() => {
-              setView("settings");
-              window.scrollTo(0, 0);
-            }}
-          >
-            <Settings size={22} />
-            <span>Settings</span>
-          </button>
+          {[
+            ["Home", "home", Home],
+            ["Insights", "report", BarChart3],
+            ["Saved", "saved", Bookmark],
+            ["Ask", "ask", MessageCircle],
+            ["Profile", "profile", UserRound],
+          ].map(([label, dest, Icon]) => {
+            const active =
+              dest === "ask"
+                ? view === "report" && tab === "Ask & reflect"
+                : dest === "report"
+                  ? view === "report" && tab !== "Ask & reflect"
+                  : view === dest;
+            return (
+              <button
+                key={dest}
+                className={active ? "active" : ""}
+                aria-current={active ? "page" : undefined}
+                onClick={() => {
+                  dest === "ask"
+                    ? destination("Ask & reflect")
+                    : dest === "report"
+                      ? destination("Overview")
+                      : setView(dest);
+                  window.scrollTo({ top: 0, behavior: "instant" });
+                }}
+              >
+                <Icon size={22} />
+                <span>{label}</span>
+              </button>
+            );
+          })}
         </nav>
       </div>
       {modal && (
-        <div
-          className="overlay"
-          onClick={(e) => {
-            if (e.target === e.currentTarget) setModal(null);
-          }}
+        <Sheet
+          onClose={() => setModal(null)}
+          titleId="modal-title"
+          className={modal === "import" ? "import-modal" : ""}
         >
-          <section
-            className={"modal " + (modal === "import" ? "import-modal" : "")}
-            role="dialog"
-            aria-modal="true"
-            aria-labelledby="modal-title"
-            onKeyDown={(e) => {
-              if (e.key === "Escape") setModal(null);
-              if (e.key === "Tab") {
-                const els = [
-                  ...e.currentTarget.querySelectorAll("button,input,select,textarea,a[href]"),
-                ].filter((el) => !el.disabled && el.offsetParent !== null);
-                if (e.shiftKey && document.activeElement === els[0]) {
-                  e.preventDefault();
-                  els.at(-1)?.focus();
-                } else if (!e.shiftKey && document.activeElement === els.at(-1)) {
-                  e.preventDefault();
-                  els[0]?.focus();
-                }
-              }
-            }}
-            ref={(el) => {
-              if (el && !el.contains(document.activeElement)) el.querySelector("button")?.focus();
-            }}
-          >
-            <button
-              className="close icon-button"
-              aria-label="Close dialog"
-              onClick={() => setModal(null)}
-            >
-              <X size={20} />
-            </button>
-            {modal === "import" ? (
-              <ImportFlow onComplete={completeImport} />
-            ) : modal === "privacy" ? (
-              <>
-                <ShieldCheck size={30} />
-                <h2 id="modal-title">Privacy & storage</h2>
-                <p>
-                  Your conversation is processed in browser memory. It is not uploaded or saved to
-                  conversation history. No account or analytics are used. Your optional profile name
-                  and photo are stored on this device. The installed production app caches
-                  application files for offline use, never your messages or reports.
-                </p>
-                <p>
-                  Refreshing or closing this tab clears the session. Exported files remain on your
-                  device until you delete them.
-                </p>
-                <p>
-                  Name and contact replacement reduce exposure but cannot guarantee anonymity. No
-                  external provider receives your messages.
-                </p>
-                <button className="primary" onClick={() => setModal(null)}>
-                  Got it <Check size={16} />
+          {modal === "import" ? (
+            <ImportFlow
+              onComplete={completeImport}
+              updateFor={conversations.find((c) => c.id === importTarget)}
+            />
+          ) : modal === "delete" ? (
+            <>
+              <h2 id="modal-title">Delete this conversation?</h2>
+              <p>
+                This removes its source messages, reports, notes, bookmarks, saved answers and
+                derived versions from this workspace and device storage. Exported files remain on
+                your device.
+              </p>
+              <div className="modal-actions">
+                <button className="secondary" onClick={() => setModal(null)}>
+                  Cancel
                 </button>
-              </>
-            ) : modal === "delete" ? (
-              <>
-                <Trash2 size={30} />
-                <h2 id="modal-title">Clear this conversation?</h2>
-                <p>
-                  This removes the conversation, local report, context and drafts from this app
-                  session. Exported files on your device are unaffected.
-                </p>
-                <div className="modal-actions">
-                  <button className="secondary" onClick={() => setModal(null)}>
-                    Keep it
-                  </button>
-                  <button className="primary" onClick={remove}>
-                    Clear session
-                  </button>
-                </div>
-              </>
-            ) : (
-              <>
-                <h2 id="modal-title">About Between</h2>
-                <p>
-                  Between helps you review your conversations and the messages behind each finding.
-                </p>
-                <p>
-                  This version uses calculated statistics and keyword matches. Accounts, contextual
-                  interpretation and cloud storage are not connected.
-                </p>
-              </>
-            )}
-          </section>
-        </div>
+                <button className="danger-button" onClick={deleteConversation}>
+                  Delete conversation
+                </button>
+              </div>
+            </>
+          ) : modal === "privacy" ? (
+            <>
+              <h2 id="modal-title">Privacy & storage</h2>
+              <p>
+                Imports are processed in your browser. Temporary conversations disappear on refresh.
+                Only conversations you explicitly save are stored in this browser’s IndexedDB, with
+                the expiry you select. Expiry is enforced when the app opens and while it is active.
+              </p>
+              <p>
+                Profile and appearance preferences are saved locally. Device storage is not an
+                encrypted vault. Use a private browser profile on shared devices.
+              </p>
+              <p>
+                No conversation content is sent to an analysis service. The current findings and Ask
+                use documented keyword rules. Account sign-up, cloud sync and expiring share links
+                are not connected yet.
+              </p>
+              <p>
+                Deleting a conversation removes its active device data and derived content;
+                downloaded exports and browser/OS backups must be managed separately. No guarantee
+                is made about physical disk erasure.
+              </p>
+            </>
+          ) : (
+            <>
+              <h2 id="modal-title">About Between</h2>
+              <p>
+                Source-linked conversation insights, with code-calculated statistics, editable
+                communication templates and space for your own context.
+              </p>
+              <p>
+                Interpretations of hidden feelings, automatic diagnosis and compatibility scores are
+                not offered.
+              </p>
+            </>
+          )}
+        </Sheet>
       )}
-      {evidence && (
-        <div
-          className="overlay"
-          onClick={(e) => {
-            if (e.target === e.currentTarget) setEvidence(null);
-          }}
-        >
-          <section
-            className="modal evidence-modal"
-            role="dialog"
-            aria-modal="true"
-            aria-label="Source evidence"
-            tabIndex={-1}
-            ref={(el) => el?.focus()}
-            onKeyDown={(e) => {
-              if (e.key === "Escape") setEvidence(null);
-              if (e.key === "Tab") {
-                const els = [...e.currentTarget.querySelectorAll("button")];
-                if (e.shiftKey && document.activeElement === els[0]) {
-                  e.preventDefault();
-                  els.at(-1)?.focus();
-                } else if (!e.shiftKey && document.activeElement === els.at(-1)) {
-                  e.preventDefault();
-                  els[0]?.focus();
-                }
-              }
-            }}
-          >
-            <button
-              className="close icon-button"
-              aria-label="Close evidence"
-              onClick={() => setEvidence(null)}
-            >
-              <X size={20} />
-            </button>
-            <div className="eyebrow">BACK TO THE WORDS</div>
-            <h2>Source messages</h2>
-            <p>
-              Highlighted messages support this observation. Neighbouring messages may add context
-              or complicate it.
-            </p>
-            {messages
-              .filter(
-                (m, i) =>
-                  evidence.includes(m.id) ||
-                  evidence.includes(messages[i - 1]?.id) ||
-                  evidence.includes(messages[i + 1]?.id),
-              )
-              .map((m) => (
-                <div
-                  className={"source-message " + (evidence.includes(m.id) ? "highlighted" : "")}
-                  key={m.id}
-                >
-                  <div>
-                    <strong>{m.speaker}</strong>
-                    <time>{m.date ? new Date(m.date).toLocaleString() : "No timestamp"}</time>
-                    <p>{m.body}</p>
-                    <small>
-                      {m.id} ·{" "}
-                      {evidence.includes(m.id) ? "Referenced excerpt" : "Surrounding context"}
-                    </small>
+      {evidence && session && (
+        <Sheet onClose={() => setEvidence(null)} label="Source messages" className="evidence-modal">
+          <div className="eyebrow">SOURCE MESSAGES</div>
+          <h2>In context</h2>
+          <p className="section-caption">
+            Referenced messages are highlighted. Neighbouring messages preserve the original source
+            order.
+          </p>
+          {session.messages
+            .filter(
+              (m, i) =>
+                evidence.includes(m.id) ||
+                evidence.includes(session.messages[i - 1]?.id) ||
+                evidence.includes(session.messages[i + 1]?.id),
+            )
+            .map((m) => (
+              <article
+                className={`source-message ${evidence.includes(m.id) ? "highlighted" : ""}`}
+                key={m.id}
+              >
+                <div>
+                  <div className="source-message-head">
+                    <strong>
+                      {m.speaker}
+                      {m.speaker === session.self ? " · You" : ""}
+                    </strong>
+                    <button
+                      className={
+                        session.bookmarks.includes(m.id)
+                          ? "bookmark-button selected"
+                          : "bookmark-button"
+                      }
+                      aria-label={
+                        session.bookmarks.includes(m.id) ? "Remove bookmark" : "Bookmark message"
+                      }
+                      onClick={() => toggleBookmark(m.id)}
+                    >
+                      <Bookmark size={17} />
+                    </button>
                   </div>
+                  <time>{m.date ? new Date(m.date).toLocaleString() : "No timestamp"}</time>
+                  <p>{m.body}</p>
+                  <small>
+                    {evidence.includes(m.id) ? "Referenced excerpt" : "Surrounding context"}
+                  </small>
                 </div>
-              ))}
-            <button className="secondary" onClick={() => setEvidence(null)}>
-              Return to report <ArrowRight size={15} />
-            </button>
-          </section>
-        </div>
+              </article>
+            ))}
+          <button className="secondary" onClick={() => setEvidence(null)}>
+            Return
+          </button>
+        </Sheet>
       )}
     </div>
   );

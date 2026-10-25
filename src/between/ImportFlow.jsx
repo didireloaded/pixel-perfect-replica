@@ -2,7 +2,8 @@ import React, { useEffect, useMemo, useRef, useState } from "react";
 import { ArrowLeft, ArrowRight, Check, FileArchive, Upload } from "lucide-react";
 import { readChatFile } from "./import";
 import { parseChat, redact, statistics, dayKey } from "./analysis";
-export default function ImportFlow({ onComplete }) {
+import { connectionTypes } from "./workspace";
+export default function ImportFlow({ onComplete, updateFor }) {
   const [text, setText] = useState(""),
     [filename, setFilename] = useState(""),
     [busy, setBusy] = useState(false),
@@ -11,11 +12,13 @@ export default function ImportFlow({ onComplete }) {
     [order, setOrder] = useState("AUTO"),
     [names, setNames] = useState({}),
     [contacts, setContacts] = useState(true),
-    [connection, setConnection] = useState("All conversations"),
+    [connection, setConnection] = useState(updateFor?.connection || ""),
     [focus, setFocus] = useState("Understand our communication"),
     [from, setFrom] = useState(""),
     [to, setTo] = useState(""),
-    [context, setContext] = useState("");
+    [context, setContext] = useState(""),
+    [self, setSelf] = useState(updateFor?.self || ""),
+    [selected, setSelected] = useState(null);
   const picker = useRef();
   const request = useRef(0);
   useEffect(
@@ -30,13 +33,14 @@ export default function ImportFlow({ onComplete }) {
       redact(
         parsed.messages.filter(
           (m) =>
+            (!selected || selected.includes(m.speaker)) &&
             (!from || (m.date && dayKey(m.date) >= from)) &&
             (!to || (m.date && dayKey(m.date) <= to)),
         ),
         names,
         contacts,
       ),
-    [parsed, names, contacts, from, to],
+    [parsed, names, contacts, from, to, selected],
   );
   const s = useMemo(() => statistics(included), [included]);
   const people = [...new Set(parsed.messages.map((m) => m.speaker))];
@@ -48,6 +52,8 @@ export default function ImportFlow({ onComplete }) {
     setText("");
     setFilename("");
     setNames({});
+    setSelected(null);
+    setSelf(updateFor?.self || "");
     setFrom("");
     setTo("");
     try {
@@ -64,7 +70,15 @@ export default function ImportFlow({ onComplete }) {
       }
     }
   }
-  function finish() {
+  async function finish() {
+    if (!connection) {
+      setError("Choose the connection type.");
+      return;
+    }
+    if (!self || !s.people.includes(names[self] || self)) {
+      setError("Choose which person is you.");
+      return;
+    }
     if (from && to && from > to) {
       setError("The start date must be before the end date.");
       return;
@@ -73,15 +87,23 @@ export default function ImportFlow({ onComplete }) {
       setError("Include messages from at least two participants.");
       return;
     }
-    onComplete({
-      messages: included,
-      filename,
-      connection,
-      focus,
-      context,
-      warnings: parsed.warnings,
-      sample: false,
-    });
+    try {
+      setBusy(true);
+      await onComplete({
+        messages: included,
+        filename,
+        connection,
+        focus,
+        context,
+        warnings: parsed.warnings,
+        self: names[self] || self,
+        sample: false,
+      });
+    } catch (e) {
+      setError(e.message);
+    } finally {
+      setBusy(false);
+    }
   }
   return (
     <>
@@ -175,14 +197,37 @@ export default function ImportFlow({ onComplete }) {
               <strong>{Object.keys(s.days).length}</strong>active days
             </span>
           </div>
-          <div className="review-people">
-            {people.map((p, i) => (
-              <span key={p}>
-                <i style={{ background: i % 2 ? "#aa7cce" : "#4f78df" }} />
+          <fieldset className="connection-picker">
+            <legend>What kind of connection?</legend>
+            <div>
+              {connectionTypes.map((t) => (
+                <button
+                  type="button"
+                  key={t}
+                  className={connection === t ? "selected" : ""}
+                  aria-pressed={connection === t}
+                  onClick={() => setConnection(t)}
+                >
+                  {t}
+                </button>
+              ))}
+            </div>
+          </fieldset>
+          <fieldset className="self-picker">
+            <legend>Which person is you?</legend>
+            {people.map((p) => (
+              <label className="checkbox" key={p}>
+                <input
+                  type="radio"
+                  name="self"
+                  value={p}
+                  checked={self === p}
+                  onChange={() => setSelf(p)}
+                />
                 {names[p] || p}
-              </span>
+              </label>
             ))}
-          </div>
+          </fieldset>
           {parsed.warnings.map((w, i) => (
             <p className={/chronological|attachment/.test(w) ? "import-note" : "warning"} key={i}>
               {w}
@@ -206,16 +251,6 @@ export default function ImportFlow({ onComplete }) {
               </select>
             </label>
             <div className="two-fields">
-              <label>
-                Connection
-                <select value={connection} onChange={(e) => setConnection(e.target.value)}>
-                  {["All conversations", "Relationships", "Friendships", "Family", "Work"].map(
-                    (x) => (
-                      <option key={x}>{x}</option>
-                    ),
-                  )}
-                </select>
-              </label>
               <label>
                 Focus
                 <select value={focus} onChange={(e) => setFocus(e.target.value)}>
@@ -241,6 +276,24 @@ export default function ImportFlow({ onComplete }) {
               </label>
             </div>
             <small>Leave dates blank to include the full history.</small>
+            <h4>Participants</h4>
+            {people.length > 2 &&
+              people.map((p) => (
+                <label className="checkbox" key={p}>
+                  <input
+                    type="checkbox"
+                    checked={!selected || selected.includes(p)}
+                    onChange={(e) =>
+                      setSelected(
+                        e.target.checked
+                          ? [...(selected || people), p]
+                          : (selected || people).filter((x) => x !== p),
+                      )
+                    }
+                  />
+                  {p}
+                </label>
+              ))}
             <h4>Names</h4>
             <div className="two-fields">
               {people.map((p) => (
@@ -273,13 +326,13 @@ export default function ImportFlow({ onComplete }) {
               />
             </label>
           </details>
-          <p className="import-note">Text only · session clears when you refresh</p>
+          <p className="import-note">Text only · temporary until you choose to save</p>
           <div className="modal-actions">
             <button className="secondary" onClick={() => setStep(1)}>
               <ArrowLeft size={15} />
               Back
             </button>
-            <button className="primary" onClick={finish}>
+            <button className="primary" disabled={busy || !connection || !self} onClick={finish}>
               Create report
               <ArrowRight size={16} />
             </button>

@@ -1,8 +1,14 @@
 import React, { useMemo, useState } from "react";
 import { Search, ChevronLeft, ChevronRight } from "lucide-react";
 import { messagePage } from "./analysis";
-export default function ConversationView({ messages, onEvidence }) {
-  const [filters, setFilters] = useState({ query: "", participant: "", from: "", to: "", page: 1 });
+export default function ConversationView({ messages, onEvidence, initialDate = "" }) {
+  const [filters, setFilters] = useState({
+    query: "",
+    participant: "",
+    from: initialDate,
+    to: initialDate,
+    page: 1,
+  });
   const result = useMemo(() => messagePage(messages, filters), [messages, filters]);
   const update = (key, value) => setFilters((f) => ({ ...f, [key]: value, page: 1 }));
   return (

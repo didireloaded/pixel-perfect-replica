@@ -33,7 +33,7 @@ function PeopleValues({ people, value }) {
     </div>
   );
 }
-export default function Overview({ messages, onEvidence }) {
+export default function Overview({ messages, onEvidence, onBrowse }) {
   const m = useMemo(() => conversationMetrics(messages), [messages]);
   const s = m.stats;
   const days = Object.entries(s.days);
@@ -163,7 +163,15 @@ export default function Overview({ messages, onEvidence }) {
             {days.map(([day, n]) => (
               <span
                 key={day}
+                role="button"
                 tabIndex={0}
+                onClick={() => onBrowse?.(day)}
+                onKeyDown={(e) => {
+                  if (e.key === "Enter" || e.key === " ") {
+                    e.preventDefault();
+                    onBrowse?.(day);
+                  }
+                }}
                 title={`${dateLabel(day)} · ${n} messages`}
                 aria-label={`${dateLabel(day)}: ${n} messages`}
                 style={{ background: `rgba(83,122,224,${0.15 + (n / maxDay) * 0.85})` }}
