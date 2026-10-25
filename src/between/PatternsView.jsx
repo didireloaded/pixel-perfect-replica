@@ -25,9 +25,28 @@ export default function PatternsView({ findings, onEvidence, conversation, onUpd
         <article className="finding" key={f.id || f.title}>
           <span className="finding-number">{String(i + 1).padStart(2, "0")}</span>
           <div>
-            <span className="tiny-label">{f.kind}</span>
+            <span className="tiny-label finding-badge">Observation</span>
             <h3>{f.title}</h3>
             <p>{f.body}</p>
+            <div className="evidence-preview-list">
+              {f.ids.slice(0, 2).map((id) => {
+                const source = conversation.messages.find((m) => m.id === id);
+                return (
+                  source && (
+                    <button className="evidence-preview" key={id} onClick={() => onEvidence([id])}>
+                      <span>
+                        <b className="evidence-initial">{source.speaker[0]}</b>
+                        <strong>{source.speaker}</strong>
+                        {source.date && <time>{new Date(source.date).toLocaleDateString()}</time>}
+                      </span>
+                      <p>
+                        {source.body.length > 180 ? source.body.slice(0, 180) + "…" : source.body}
+                      </p>
+                    </button>
+                  )
+                );
+              })}
+            </div>
             <button className="evidence-link" onClick={() => onEvidence(f.ids)}>
               <Quote size={14} />
               {f.ids.length} source excerpts

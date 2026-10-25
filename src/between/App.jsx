@@ -1,6 +1,7 @@
 import React, { useEffect, useMemo, useState } from "react";
 import {
   Home,
+  ArrowLeft,
   BarChart3,
   Bookmark,
   MessageCircle,
@@ -19,6 +20,7 @@ import {
   X,
 } from "lucide-react";
 import "./style.css";
+import "./redesign.css";
 import Profile, { readProfile, ProfileAvatar } from "./Profile";
 import Preferences, { applyPreferences } from "./Preferences";
 import ImportFlow from "./ImportFlow";
@@ -175,7 +177,7 @@ export default function App() {
     )
     .slice(0, 4);
   return (
-    <div className="app">
+    <div className={`app redesign-app ${view === "report" && session ? "pushed-report" : ""}`}>
       <div className="main">
         <header>
           <a
@@ -295,7 +297,10 @@ export default function App() {
                           <span>{[...new Set(c.messages.map((m) => m.speaker))][1]?.[0]}</span>
                         </span>
                         <span>
-                          <strong>{c.title}</strong>
+                          <span className="chat-row-title">
+                            <strong>{c.title}</strong>
+                            <span className="count-tag">{c.messages.length.toLocaleString()}</span>
+                          </span>
                           <small>
                             {c.connection} · {c.messages.length.toLocaleString()} messages
                           </small>
@@ -398,6 +403,12 @@ export default function App() {
               )}
               {view === "report" && session && (
                 <>
+                  <div className="report-back-row">
+                    <button className="back-button" onClick={() => setView("home")}>
+                      <ArrowLeft size={19} /> Back
+                    </button>
+                    <span>{session.saved ? "On this device" : "Temporary"}</span>
+                  </div>
                   <div className="report-heading">
                     <div>
                       <div className="eyebrow">
@@ -456,25 +467,6 @@ export default function App() {
                   <section role="tabpanel" aria-label={tab}>
                     {tab === "Overview" && (
                       <>
-                        <article className="conversation-summary">
-                          <h2>At a glance</h2>
-                          <p>
-                            {session.title} includes {stats.total.toLocaleString()} text messages
-                            from {stats.people.length} participants, across{" "}
-                            {Object.keys(stats.days).length} active days.{" "}
-                            {findings
-                              .slice(0, 2)
-                              .map((f) => f.body)
-                              .join(" ")}
-                          </p>
-                          <button
-                            className="text-button"
-                            onClick={() => setTab("Patterns & evidence")}
-                          >
-                            Explore the evidence
-                            <ChevronRight size={15} />
-                          </button>
-                        </article>
                         <Overview
                           messages={session.messages}
                           onEvidence={setEvidence}
@@ -566,7 +558,9 @@ export default function App() {
                   window.scrollTo({ top: 0, behavior: "instant" });
                 }}
               >
-                <Icon size={22} />
+                <span className="tab-icon-wrap">
+                  <Icon size={20} />
+                </span>
                 <span>{label}</span>
               </button>
             );

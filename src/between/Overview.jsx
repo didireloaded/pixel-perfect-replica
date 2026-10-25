@@ -1,7 +1,7 @@
 import React, { useMemo } from "react";
 import { ArrowUpRight } from "lucide-react";
 import { conversationMetrics } from "./analysis";
-const colors = ["#4f78df", "#aa7cce", "#4d9b8b", "#d39070"];
+const colors = ["#4f78df", "#4d9b8b", "#aa7cce", "#d39070"];
 export const calculationRules =
   "Counts include selected text messages; attachment placeholders and system events are excluded. Timing uses a stable chronological copy; equal timestamps retain source order. Missing dates are excluded from timing. A conversation starts at the earliest dated message or after an 8-hour gap. Reply times count speaker changes with gaps below 8 hours, including zero-minute replies. Median is the middle value (or the average of the two middle values). Days and hours use your device timezone. Streak counts consecutive active calendar days; silence is the largest timestamp gap within this selected history. Word counts use letter/number tokens; common English filler words are omitted from frequent words. Emoji sequences are counted as displayed sequences. These metrics don’t establish feelings or intent.";
 const duration = (minutes) =>
