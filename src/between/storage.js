@@ -73,3 +73,13 @@ export async function deleteSaved(id, expected = null) {
       reject(problem || new Error("Could not remove the saved conversation."));
   });
 }
+export async function clearSaved() {
+  const db = await database();
+  return new Promise((resolve, reject) => {
+    const tx = db.transaction(STORE, "readwrite");
+    tx.objectStore(STORE).clear();
+    tx.oncomplete = () => resolve();
+    tx.onerror = tx.onabort = () =>
+      reject(new Error("Saved chats could not be cleared. Try again before leaving this browser."));
+  });
+}

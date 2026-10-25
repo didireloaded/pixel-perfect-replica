@@ -60,6 +60,12 @@ export default function Overview({ messages, onEvidence, onBrowse }) {
           {s.total.toLocaleString()} messages · {days.length} active days
         </span>
       </div>
+      {s.total < 20 && (
+        <p className="section-caption">
+          Short history: these numbers describe only {s.total} messages. A few replies can change
+          the results substantially.
+        </p>
+      )}
       <div className="insight-grid">
         <article className="visual-card tint-mint">
           <h3>Who talks</h3>

@@ -174,3 +174,24 @@ export function checkInCalendar({ date, title }) {
     "",
   ].join("\r\n");
 }
+export function exportStatisticsCSV(c) {
+  const stats = statistics(c.messages);
+  const cell = (value) => {
+    let text = String(value);
+    if (typeof value === "string" && /^[=+\-@\t\r]/.test(text)) text = "'" + text;
+    return `"${text.replace(/"/g, '""')}"`;
+  };
+  return (
+    [
+      ["Participant", "Messages", "Share (%)", "Conversation starts"],
+      ...stats.people.map((person) => [
+        person,
+        stats.counts[person],
+        Number(((stats.counts[person] / Math.max(stats.total, 1)) * 100).toFixed(2)),
+        stats.starts[person],
+      ]),
+    ]
+      .map((row) => row.map(cell).join(","))
+      .join("\r\n") + "\r\n"
+  );
+}

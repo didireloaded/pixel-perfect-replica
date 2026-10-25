@@ -116,14 +116,22 @@ export function parseChat(text, order = "AUTO") {
     } else if (line.trim() && messages.length) messages[messages.length - 1].body += "\n" + line;
     else if (line.trim()) skipped++;
   }
-  const valid = messages.filter(
+  const deleted = messages.filter((m) =>
+    /^(?:this message was deleted|you deleted this message)\.?$/i.test(
+      m.body.replace(/[\u200e\u200f]/g, "").trim(),
+    ),
+  );
+  const deletedSet = new Set(deleted);
+  const content = messages.filter((m) => !deletedSet.has(m));
+  const valid = content.filter(
     (m) =>
       !/(?:<media omitted>|image omitted|video omitted|audio omitted|sticker omitted|\(file attached\))/i.test(
         m.body,
       ),
   );
-  if (valid.length !== messages.length)
-    warnings.push(`${messages.length - valid.length} attachment placeholder(s) excluded.`);
+  if (valid.length !== content.length)
+    warnings.push(`${content.length - valid.length} attachment placeholder(s) excluded.`);
+  if (deleted.length) warnings.push(`${deleted.length} deleted-message placeholder(s) excluded.`);
   if (skipped) warnings.push(`${skipped} unrecognised or system line(s) excluded.`);
   if (valid.some((m) => !m.date))
     warnings.push("Some timestamps are missing. Timing metrics exclude these messages.");

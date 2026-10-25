@@ -89,3 +89,12 @@ test("equal timestamps keep original relative order; missing dates never invent 
   assert.deepEqual(s.starts, { C: 0, A: 1, B: 0 });
   assert.deepEqual(s.replies, { C: [], A: [1], B: [0] });
 });
+test("deleted-message placeholders are excluded without removing ordinary discussion", () => {
+  const r = parseChat(
+    "[10/24/26, 09:00] A: This message was deleted\n[10/24/26, 09:01] B: You deleted this message.\n[10/24/26, 09:02] A: Why does it say this message was deleted?",
+    "MDY",
+  );
+  assert.equal(r.messages.length, 1);
+  assert.match(r.messages[0].body, /Why/);
+  assert.ok(r.warnings.some((w) => /2 deleted-message/.test(w)));
+});

@@ -158,7 +158,7 @@ export default function Profile({ profile, onSave }) {
           placeholder="Your name"
         />
         <p className="profile-storage-note">
-          Saved on this device. Account sign-up isn’t connected yet.
+          Name and photo are saved in this browser.
         </p>
         <div className="profile-save-actions">
           <button className="primary" disabled={busy} type="submit">

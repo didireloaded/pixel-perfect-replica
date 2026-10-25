@@ -1,7 +1,7 @@
 import React, { useEffect, useMemo, useRef, useState } from "react";
-import { ArrowLeft, ArrowRight, Check, FileArchive, Upload } from "lucide-react";
-import { readChatFile } from "./import";
-import { parseChat, redact, statistics, dayKey } from "./analysis";
+import { ArrowLeft, ArrowRight, Check, FileArchive, Upload, LockKeyhole } from "lucide-react";
+import { processImport } from "./import-task";
+import { sample, redact, statistics, dayKey } from "./analysis";
 import { connectionTypes } from "./workspace";
 export default function ImportFlow({ onComplete, updateFor }) {
   const [text, setText] = useState(""),
@@ -18,16 +18,19 @@ export default function ImportFlow({ onComplete, updateFor }) {
     [to, setTo] = useState(""),
     [context, setContext] = useState(""),
     [self, setSelf] = useState(updateFor?.self || ""),
-    [selected, setSelected] = useState(null);
+    [selected, setSelected] = useState(null),
+    [parsed, setParsed] = useState({ messages: [], warnings: [] }),
+    [stage, setStage] = useState("");
   const picker = useRef();
+  const controller = useRef();
   const request = useRef(0);
   useEffect(
     () => () => {
       request.current++;
+      controller.current?.abort();
     },
     [],
   );
-  const parsed = useMemo(() => parseChat(text, order), [text, order]);
   const included = useMemo(
     () =>
       redact(
@@ -46,10 +49,13 @@ export default function ImportFlow({ onComplete, updateFor }) {
   const people = [...new Set(parsed.messages.map((m) => m.speaker))];
   async function read(file) {
     if (!file) return;
+    controller.current?.abort();
+    controller.current = new AbortController();
     const id = ++request.current;
     setBusy(true);
     setError("");
     setText("");
+    setParsed({ messages: [], warnings: [] });
     setFilename("");
     setNames({});
     setSelected(null);
@@ -57,17 +63,54 @@ export default function ImportFlow({ onComplete, updateFor }) {
     setFrom("");
     setTo("");
     try {
-      const r = await readChatFile(file);
+      const r = await processImport(
+        { file, order },
+        { signal: controller.current.signal, onStage: setStage },
+      );
       if (id !== request.current) return;
       setText(r.text);
+      setParsed(r.parsed);
       setFilename(r.archiveName || file.name);
     } catch (e) {
-      if (id === request.current) setError(e.message || "The file couldn’t be opened.");
+      if (id === request.current && e.name !== "AbortError")
+        setError(e.message || "The file couldn’t be opened.");
     } finally {
       if (id === request.current) {
         setBusy(false);
         if (picker.current) picker.current.value = "";
       }
+    }
+  }
+  function cancelImport() {
+    request.current++;
+    controller.current?.abort();
+    setBusy(false);
+    setText("");
+    setFilename("");
+    setParsed({ messages: [], warnings: [] });
+    setStage("");
+    if (picker.current) picker.current.value = "";
+  }
+  async function changeOrder(value) {
+    setOrder(value);
+    controller.current?.abort();
+    controller.current = new AbortController();
+    const id = ++request.current;
+    setBusy(true);
+    setError("");
+    try {
+      const result = await processImport(
+        { text, order: value },
+        { signal: controller.current.signal, onStage: setStage },
+      );
+      if (id === request.current) setParsed(result.parsed);
+    } catch (e) {
+      if (id === request.current && e.name !== "AbortError") {
+        setError(e.message);
+        setParsed({ messages: [], warnings: [] });
+      }
+    } finally {
+      if (id === request.current) setBusy(false);
     }
   }
   async function finish() {
@@ -89,6 +132,7 @@ export default function ImportFlow({ onComplete, updateFor }) {
     }
     try {
       setBusy(true);
+      setStage("");
       await onComplete({
         messages: included,
         filename,
@@ -97,7 +141,7 @@ export default function ImportFlow({ onComplete, updateFor }) {
         context,
         warnings: parsed.warnings,
         self: names[self] || self,
-        sample: false,
+        sample: filename === "Fictional demo.txt",
       });
     } catch (e) {
       setError(e.message);
@@ -109,6 +153,15 @@ export default function ImportFlow({ onComplete, updateFor }) {
     <>
       <div className="eyebrow">IMPORT · {step} OF 2</div>
       <h2 id="modal-title">{step === 1 ? "Import chat" : "Review chat"}</h2>
+      {busy && stage && (
+        <div role="status" className="import-progress">
+          <span>{stage || "Opening chat…"}</span>
+          <button type="button" className="text-button" onClick={cancelImport}>
+            Cancel import
+          </button>
+        </div>
+      )}
+
       <input
         ref={picker}
         type="file"
@@ -132,13 +185,13 @@ export default function ImportFlow({ onComplete, updateFor }) {
               <span className="feature-icon">
                 <Upload size={24} />
               </span>
-              <strong>{busy ? "Opening chat…" : "Choose WhatsApp export"}</strong>
+              <strong>{busy ? stage || "Opening chat…" : "Choose WhatsApp export"}</strong>
               <span>ZIP or TXT · without attachments</span>
             </button>
           ) : (
             <div className="upload-confirmation" role="status">
-              <span className="file-success">
-                <Check size={19} />
+              <span className={parsed.messages.length ? "file-success" : "file-neutral"}>
+                {parsed.messages.length ? <Check size={19} /> : <FileArchive size={19} />}
               </span>
               <div>
                 <strong>{filename}</strong>
@@ -151,16 +204,44 @@ export default function ImportFlow({ onComplete, updateFor }) {
               </button>
             </div>
           )}
+          <p className="local-processing">
+            <LockKeyhole size={14} /> Processed on this device · chat content isn’t uploaded
+          </p>
+          <details className="import-help">
+            <summary>How to export from WhatsApp</summary>
+            <ol>
+              <li>Open a chat, then its contact or group information.</li>
+              <li>Choose Export chat (on Android, it may be under More).</li>
+              <li>
+                Select <strong>Without media</strong>, then choose the ZIP or TXT here.
+              </li>
+            </ol>
+            <p>
+              Files above these limits are rejected before reading. If an export fails, export again
+              without media or choose its chat TXT file. No messages are saved unless you choose
+              Save on this device.
+            </p>
+          </details>
+          {!text && !busy && !updateFor && (
+            <button
+              type="button"
+              className="text-button"
+              onClick={() => read(new File([sample], "Fictional demo.txt", { type: "text/plain" }))}
+            >
+              Try a fictional chat
+            </button>
+          )}
           <p className="upload-limit">ZIP up to 50 MB · chat text up to 2 MB</p>
           {text && parsed.messages.length === 0 && (
             <p className="warning">
-              No messages detected. Check the date format or choose another export.
+              No WhatsApp messages detected. Check the date format, or export the chat again without
+              media.
             </p>
           )}
           {text && (
             <label>
               Date format
-              <select value={order} onChange={(e) => setOrder(e.target.value)}>
+              <select value={order} onChange={(e) => changeOrder(e.target.value)}>
                 <option value="AUTO">Detect automatically</option>
                 <option value="DMY">Day / month / year</option>
                 <option value="MDY">Month / day / year</option>
@@ -242,7 +323,7 @@ export default function ImportFlow({ onComplete, updateFor }) {
             </summary>
             <label>
               Date format
-              <select value={order} onChange={(e) => setOrder(e.target.value)}>
+              <select value={order} onChange={(e) => changeOrder(e.target.value)}>
                 <option value="AUTO">
                   Automatic ({parsed.dateOrder === "MDY" ? "month/day" : "day/month"})
                 </option>

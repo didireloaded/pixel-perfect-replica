@@ -2,7 +2,7 @@ import React, { useState } from "react";
 import ReportDocument from "./ReportDocument";
 import Sheet from "./Sheet";
 import { createPortal } from "react-dom";
-import { exportConversation, redactedInsight } from "./workspace";
+import { exportConversation, redactedInsight, exportStatisticsCSV } from "./workspace";
 import { explorePatterns } from "./insights";
 export function downloadText(text, name, type = "text/plain") {
   const url = URL.createObjectURL(new Blob([text], { type }));
@@ -36,6 +36,18 @@ export default function ExportPanel({ conversation }) {
       <div className="action-row">
         <button className="secondary" onClick={() => downloadJSON(data, "between-report.json")}>
           Download report data
+        </button>
+        <button
+          className="secondary"
+          onClick={() =>
+            downloadText(
+              exportStatisticsCSV(conversation),
+              "between-statistics.csv",
+              "text/csv;charset=utf-8",
+            )
+          }
+        >
+          Download statistics CSV
         </button>
         <button className="primary" onClick={() => setPreview(true)}>
           Preview report / Save PDF

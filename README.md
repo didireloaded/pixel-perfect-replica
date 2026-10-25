@@ -1,34 +1,27 @@
-# Pixel Perfect Replica
+# Between
 
-Implement exactly the screenshot and nothing else
+A mobile-friendly PWA for exploring a WhatsApp text history. No account or payment is required. Imports, statistics and keyword observations run in the browser; chat content is not uploaded to a backend or analysis provider. App assets and hosting may still involve network requests; this is not a promise of zero network traffic.
 
-This project was built with [Lovable](https://lovable.dev).
+## Import
 
-## Build with Lovable
+In WhatsApp, open a chat's contact/group information (or More on Android), choose **Export chat → Without media**, then import the ZIP or TXT. A fictional demo is available inside Import chat.
 
-Continue developing this project in the [Lovable editor](https://lovable.dev/projects/90555f7e-7d3d-40f7-86df-3596359f90ef).
+Current hard limits: **50 MB ZIP, 2 MB extracted UTF-8 text**, one chat per import. These are supported limits, not a guarantee for every device. Larger files are rejected before reading. Archives and date parsing run in a cancellable Web Worker with stage feedback and a 30-second timeout. Media and system placeholders are excluded. The original filename, detected dates and warnings appear before creating the report; ambiguous dates can be corrected manually. Unsupported/damaged archives show an error rather than producing an empty report.
 
-- **Ship faster**: describe what you want to build and Lovable handles the code.
-- **Stay in sync**: every change made in Lovable is committed straight to this repository.
-- **Full ownership**: this code is yours. Push to `main` on GitHub and your changes sync back into Lovable, ready for your next prompt.
+## Storage and deletion
+
+Imports are temporary unless you explicitly choose **Manage conversation → Save on this device**. Temporary sessions disappear on reload. Saved conversations, notes, goals, bookmarks and answers use this browser profile's IndexedDB; profile photo/name and appearance preferences use localStorage. Optional expiry runs when the app opens or remains active, not while it is closed. Browser storage is not encrypted by the app.
+
+Delete one chat from Manage conversation. **Profile → Clear all app data** removes temporary/saved chats, derived content, profile and preferences after confirmation. Other open tabs are notified when BroadcastChannel is supported. Downloaded exports, other browser profiles/devices, and browser/OS backups remain separate. This does not promise physical disk erasure.
+
+## Exports and interpretation
+
+Manage conversation provides a visual landscape **PDF preview/print**, JSON report, full JSON backup and **CSV statistics**. Source quotes are optional and off by default; names/context can still be personal. Selected observations can be downloaded or shared using the device share sheet. No login or paywall is added after import.
+
+Statistics include participation, median reply times, starts, streaks, busiest days, activity and word/emoji frequency. Timing uses a chronological copy; source order and IDs stay intact. Patterns and Ask use disclosed keyword/retrieval rules, not semantic analysis, diagnosis or hidden-intent claims. Short/sparse histories support fewer conclusions. Conversation search renders 30 messages per page.
 
 ## Development
 
-Prefer working locally? You need Node.js and npm — [install with nvm](https://github.com/nvm-sh/nvm#installing-and-updating).
+The app lives in `src/between`, loaded after hydration. Run `npm install`, `npm run dev`, `npm run test:between`, `npm test`, and `npm run build`. The production build is under `.output/public`; its generated service worker is disabled in dev and Lovable previews. Keep pushed Git history intact: the main branch syncs both ways with Lovable.
 
-```sh
-git clone <this-repository-url>
-cd <repository-name>
-npm i
-npm run dev
-```
-
-## Visual report update
-
-The upload confirmation and report heading retain the original ZIP filename. Exports without attachments are supported; raw transcript/paste UI, sample shortcuts and per-message exclusion controls have been removed from the import flow. Review uses automatic whole-history defaults with optional adjustments. Contact/name redaction still applies to all imported text, and ambiguous date errors remain visible.
-
-Overview uses computed message counts/share, starts, median reply times, busiest day, consecutive active-day streak, largest timestamp gap, hourly activity and active-day tiles. Highlights open exact source evidence. Words use Unicode letter/number tokens, omit common English filler words and rank frequencies; emojis count displayed sequences. Patterns is a distinct keyword-findings view. Conversation uses text/participant/date filters and 30-message pages.
-
-Timing uses a stable chronological copy of dated messages; ties keep source order. Missing timestamps are excluded from timing only. Original message order and IDs remain unchanged for evidence. All gaps, days and medians reflect only the selected imported text, not offline interaction or feelings. Date grouping is in the device timezone. No accounts, semantic analysis or publishing were added.
-
-Build outputs in `.output/public` (Nitro), `dist/client` or `dist` are supported by the service-worker generator; hosting metadata is not precached. Preview/dev service-worker exclusions remain intact.
+[Lovable project](https://lovable.dev/projects/90555f7e-7d3d-40f7-86df-3596359f90ef)

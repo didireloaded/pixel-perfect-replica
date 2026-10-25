@@ -107,6 +107,30 @@ export default function App() {
     setModal(null);
     destination("Overview");
   }
+  useEffect(() => {
+    const cleared = () => {
+      setProfile({ name: "", photo: "" });
+      setEvidence(null);
+      setModal(null);
+      setView("home");
+      setQuery("");
+      setCategory("All");
+      setImportTarget(null);
+      applyPreferences();
+      setMessage(
+        "All chats, reports, profile and preferences cleared from this browser. Downloaded files are unchanged.",
+      );
+    };
+    window.addEventListener("between:cleared", cleared);
+    return () => window.removeEventListener("between:cleared", cleared);
+  }, []);
+  async function clearAllData() {
+    try {
+      await workspace.clear();
+    } catch (e) {
+      setError(e.message);
+    }
+  }
   async function deleteConversation() {
     try {
       await workspace.remove(session.id);
@@ -239,6 +263,12 @@ export default function App() {
                       </button>
                     </div>
                   </section>
+                  <button
+                    className="local-processing local-processing-button"
+                    onClick={() => setModal("privacy")}
+                  >
+                    <ShieldCheck size={14} /> Chat content stays on this device
+                  </button>
                   <div className="section-heading">
                     <h2>Your conversations</h2>
                     <button onClick={() => setView("library")}>
@@ -304,6 +334,17 @@ export default function App() {
                     <h1>Profile</h1>
                   </div>
                   <Profile profile={profile} onSave={setProfile} />
+                  <section className="settings-group">
+                    <h3>Data on this device</h3>
+                    <p className="section-caption">
+                      {conversations.filter((c) => c.saved).length} saved chats ·{" "}
+                      {conversations.filter((c) => !c.saved).length} temporary chats. Saved chats
+                      use this browser’s IndexedDB. Temporary chats disappear on refresh.
+                    </p>
+                    <button className="danger-button" onClick={() => setModal("clear-all")}>
+                      Clear all app data
+                    </button>
+                  </section>
                   <Preferences />
                   <section className="settings-group">
                     <h3>App & data</h3>
@@ -560,9 +601,33 @@ export default function App() {
                 </button>
               </div>
             </>
+          ) : modal === "clear-all" ? (
+            <>
+              <h2 id="modal-title">Clear all app data?</h2>
+              <p>
+                This deletes all temporary and saved chats, reports, notes, bookmarks, answers,
+                profile photo and preferences from this browser. This cannot be undone.
+              </p>
+              <p>
+                Downloaded exports and browser or OS backups are not deleted. Other browser profiles
+                and devices are separate. Close other Between tabs first if this browser does not
+                support cross-tab notifications.
+              </p>
+              <div className="modal-actions">
+                <button className="secondary" onClick={() => setModal(null)}>
+                  Cancel
+                </button>
+                <button className="danger-button" onClick={clearAllData}>
+                  Clear all app data
+                </button>
+              </div>
+            </>
           ) : modal === "privacy" ? (
             <>
               <h2 id="modal-title">Privacy & storage</h2>
+              <button className="danger-button" onClick={() => setModal("clear-all")}>
+                Clear all app data
+              </button>
               <p>
                 Imports are processed in your browser. Temporary conversations disappear on refresh.
                 Only conversations you explicitly save are stored in this browser’s IndexedDB, with
@@ -574,8 +639,8 @@ export default function App() {
               </p>
               <p>
                 No conversation content is sent to an analysis service. The current findings and Ask
-                use documented keyword rules. Account sign-up, cloud sync and expiring share links
-                are not connected yet.
+                use documented keyword rules. No account is required. Chats are not uploaded to
+                cloud storage.
               </p>
               <p>
                 Deleting a conversation removes its active device data and derived content;

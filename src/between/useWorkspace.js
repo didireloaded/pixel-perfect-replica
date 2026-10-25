@@ -1,11 +1,12 @@
 import { useCallback, useEffect, useRef, useState } from "react";
-import { listSaved, putSaved, deleteSaved } from "./storage";
+import { listSaved, putSaved, deleteSaved, clearSaved } from "./storage";
 import { createConversation, isExpired } from "./workspace";
 export default function useWorkspace() {
   const [conversations, setConversations] = useState([]),
     [activeId, setActiveId] = useState(null),
     [ready, setReady] = useState(false),
     [error, setError] = useState("");
+  const channel = useRef(null);
   const state = useRef([]),
     locks = useRef(new Set());
   const publish = useCallback((next) => {
@@ -44,6 +45,30 @@ export default function useWorkspace() {
       expired.forEach((c) => deleteSaved(c.id).catch((e) => setError(e.message)));
     }, 60000);
     return () => clearInterval(timer);
+  }, [publish]);
+  useEffect(() => {
+    if (!window.BroadcastChannel) return;
+    const connection = new BroadcastChannel("between-storage");
+    channel.current = connection;
+    connection.onmessage = ({ data }) => {
+      if (data !== "cleared") return;
+      publish([]);
+      setActiveId(null);
+      window.dispatchEvent(new Event("between:cleared"));
+    };
+    return () => {
+      channel.current = null;
+      connection.close();
+    };
+  }, [publish]);
+  const clear = useCallback(async () => {
+    if (locks.current.size) throw new Error("Wait for the current save to finish, then try again.");
+    await clearSaved();
+    publish([]);
+    setActiveId(null);
+    for (const key of ["between.profile.v1", "between.preferences"]) localStorage.removeItem(key);
+    channel.current?.postMessage("cleared");
+    window.dispatchEvent(new Event("between:cleared"));
   }, [publish]);
   const add = useCallback(
     (input) => {
@@ -105,5 +130,6 @@ export default function useWorkspace() {
     add,
     update,
     remove,
+    clear,
   };
 }
