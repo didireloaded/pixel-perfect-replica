@@ -1,29 +1,795 @@
-import React,{useState,useMemo,useRef,useEffect} from 'react';import{ArrowUpRight,ArrowRight,Plus,MessageCircle,Heart,Users,Home,Briefcase,ShieldCheck,Lock,ChevronRight,Upload,X,Check,Download,Trash2,Search,ArrowLeft,Quote,Info,Settings,BarChart3,Smartphone,WifiOff}from'lucide-react';import{sample,parseChat,statistics,redact,findings,dayKey}from'./analysis';import './style.css';import {readChatFile} from './import';import Profile,{readProfile,ProfileAvatar} from './Profile';
-const categories=[['All conversations',MessageCircle],['Relationships',Heart],['Friendships',Users],['Family',Home],['Work',Briefcase]];
-export default function App(){
- const[profile,setProfile]=useState(readProfile);
- const[view,setView]=useState('home'),[category,setCategory]=useState('All conversations'),[modal,setModal]=useState(null),[step,setStep]=useState(1),[text,setText]=useState(''),[order,setOrder]=useState('AUTO'),[error,setError]=useState(''),[names,setNames]=useState({}),[contacts,setContacts]=useState(true),[excluded,setExcluded]=useState([]),[context,setContext]=useState(''),[focus,setFocus]=useState('Understand our communication'),[start,setStart]=useState(''),[end,setEnd]=useState(''),[session,setSession]=useState(null),[evidence,setEvidence]=useState(null),[tab,setTab]=useState('Overview'),[query,setQuery]=useState(''),[question,setQuestion]=useState(''),[answer,setAnswer]=useState(''),[draft,setDraft]=useState(''),[tone,setTone]=useState('Gentle'),[draftGoal,setDraftGoal]=useState('');const file=useRef();const importRequest=useRef(0);const [importing,setImporting]=useState(false);const [importName,setImportName]=useState(''); const [installPrompt,setInstallPrompt]=useState(null); const [offline,setOffline]=useState(!navigator.onLine); const [installStatus,setInstallStatus]=useState('');
- useEffect(()=>{const capture=e=>{e.preventDefault();setInstallPrompt(e);};const connection=()=>setOffline(!navigator.onLine);const done=()=>{setInstallPrompt(null);setInstallStatus('Between is installed.');};window.addEventListener('beforeinstallprompt',capture);window.addEventListener('online',connection);window.addEventListener('offline',connection);window.addEventListener('appinstalled',done);return()=>{window.removeEventListener('beforeinstallprompt',capture);window.removeEventListener('online',connection);window.removeEventListener('offline',connection);window.removeEventListener('appinstalled',done);};},[]);
- async function install(){if(installPrompt){await installPrompt.prompt();const choice=await installPrompt.userChoice;setInstallStatus(choice.outcome==='accepted'?'Installation requested.':'You can install later.');setInstallPrompt(null);}else setInstallStatus('On iPhone: open in Safari, tap Share, then Add to Home Screen. On supported desktop or Android browsers, use the browser’s Install app option. Installation requires HTTPS or localhost.');}
- function openDestination(next){if(!session){loadSample();}else setView('report');setTab(next);setModal(null);window.scrollTo(0,0);}
- const parsed=useMemo(()=>parseChat(text,order),[text,order]);const preview=useMemo(()=>redact(parsed.messages.filter(m=>!excluded.includes(m.id)&&(!start||m.date&&dayKey(m.date)>=start)&&(!end||m.date&&dayKey(m.date)<=end)),names,contacts),[parsed,names,contacts,excluded,start,end]);
- const messages=session?.messages||[];const stats=statistics(messages);const insights=findings(messages);
- function openImport(){setStep(1);setError('');setModal('import');}
- function loadSample(){if(session&&!session.sample&&!window.confirm('Opening the sample replaces your current session. Export the report first if you want to keep it. Continue?'))return;setSession({messages:parseChat(sample).messages,sample:true,warnings:[],context:'Fictional example: Alex and Jamie are partners.',focus:'Understand our communication'});setView('report');setTab('Overview');setAnswer('');}
- function analyse(){if(session&&!window.confirm('Replace the existing report in this tab? Export it first if you want to keep it.'))return;if(new Set(preview.map(m=>m.speaker)).size<2){setError('Include at least two participants before creating a report.');return;}setSession({messages:preview,sample:false,warnings:parsed.warnings,context,focus});setText('');setNames({});setExcluded([]);setStart('');setEnd('');setContext('');setModal(null);setView('report');setTab('Overview');setAnswer('');setError('');}
- async function readFile(f){if(!f)return;const request=++importRequest.current;setImporting(true);setError('');setText('');setImportName('');try{const result=await readChatFile(f);if(request!==importRequest.current)return;setText(result.text);setImportName(result.name);setNames({});setExcluded([]);setStart('');setEnd('');}catch(e){if(request===importRequest.current)setError(e.message||'This file couldn’t be opened. Try exporting it again.');}finally{if(request===importRequest.current){setImporting(false);if(file.current)file.current.value='';}}}
+import React, { useState, useMemo, useEffect } from "react";
+import {
+  ArrowUpRight,
+  ArrowRight,
+  Plus,
+  MessageCircle,
+  Heart,
+  Users,
+  Home,
+  Briefcase,
+  ShieldCheck,
+  Lock,
+  ChevronRight,
+  Upload,
+  X,
+  Check,
+  Download,
+  Trash2,
+  Search,
+  ArrowLeft,
+  Quote,
+  Info,
+  Settings,
+  BarChart3,
+  Smartphone,
+  WifiOff,
+} from "lucide-react";
+import { statistics, findings } from "./analysis";
+import "./style.css";
+import ImportFlow from "./ImportFlow";
+import Overview from "./Overview";
+import PatternsView from "./PatternsView";
+import ConversationView from "./ConversationView";
+import Profile, { readProfile, ProfileAvatar } from "./Profile";
+const categories = [
+  ["All conversations", MessageCircle],
+  ["Relationships", Heart],
+  ["Friendships", Users],
+  ["Family", Home],
+  ["Work", Briefcase],
+];
+export default function App() {
+  const [profile, setProfile] = useState(readProfile);
+  const [view, setView] = useState("home"),
+    [category, setCategory] = useState("All conversations"),
+    [modal, setModal] = useState(null),
+    [session, setSession] = useState(null),
+    [evidence, setEvidence] = useState(null),
+    [tab, setTab] = useState("Overview"),
+    [query, setQuery] = useState(""),
+    [question, setQuestion] = useState(""),
+    [answer, setAnswer] = useState(""),
+    [draft, setDraft] = useState(""),
+    [tone, setTone] = useState("Gentle"),
+    [draftGoal, setDraftGoal] = useState("");
+  const [installPrompt, setInstallPrompt] = useState(null);
+  const [offline, setOffline] = useState(!navigator.onLine);
+  const [installStatus, setInstallStatus] = useState("");
+  useEffect(() => {
+    const capture = (e) => {
+      e.preventDefault();
+      setInstallPrompt(e);
+    };
+    const connection = () => setOffline(!navigator.onLine);
+    const done = () => {
+      setInstallPrompt(null);
+      setInstallStatus("Between is installed.");
+    };
+    window.addEventListener("beforeinstallprompt", capture);
+    window.addEventListener("online", connection);
+    window.addEventListener("offline", connection);
+    window.addEventListener("appinstalled", done);
+    return () => {
+      window.removeEventListener("beforeinstallprompt", capture);
+      window.removeEventListener("online", connection);
+      window.removeEventListener("offline", connection);
+      window.removeEventListener("appinstalled", done);
+    };
+  }, []);
+  async function install() {
+    if (installPrompt) {
+      await installPrompt.prompt();
+      const choice = await installPrompt.userChoice;
+      setInstallStatus(
+        choice.outcome === "accepted" ? "Installation requested." : "You can install later.",
+      );
+      setInstallPrompt(null);
+    } else
+      setInstallStatus(
+        "On iPhone: open in Safari, tap Share, then Add to Home Screen. On supported desktop or Android browsers, use the browser’s Install app option. Installation requires HTTPS or localhost.",
+      );
+  }
+  function openDestination(next) {
+    setView("report");
+    setTab(next);
+    setModal(null);
+    window.scrollTo(0, 0);
+  }
+  const messages = session?.messages || [];
+  const stats = useMemo(() => statistics(messages), [messages]);
+  const insights = useMemo(() => findings(messages), [messages]);
+  function openImport() {
+    setModal("import");
+  }
+  function completeImport(next) {
+    if (
+      session &&
+      !window.confirm("Replace the current report? Export it first if you want to keep it.")
+    )
+      return;
+    setSession(next);
+    setModal(null);
+    setView("report");
+    setTab("Overview");
+    setAnswer("");
+    setQuestion("");
+    setDraft("");
+    setDraftGoal("");
+    setEvidence(null);
+  }
+  function remove() {
+    setSession(null);
+    setAnswer("");
+    setDraft("");
+    setQuestion("");
+    setQuery("");
+    setDraftGoal("");
+    setEvidence(null);
+    setModal(null);
+    setView("home");
+  }
 
- function remove(){setSession(null);setText('');setNames({});setExcluded([]);setContext('');setStart('');setEnd('');setAnswer('');setDraft('');setQuestion('');setQuery('');setDraftGoal('');setEvidence(null);setModal(null);setView('home');}
- function exportReport(){const out=['BETWEEN — Local conversation report',session?.sample?'Fictional sample':'Imported conversation',`${stats.total} messages · ${stats.people.length} participants`,'Calculated statistics and keyword matches.',...insights.flatMap(f=>[f.title,f.body,...f.ids.map(id=>{const m=messages.find(x=>x.id===id);return `${m.speaker} · ${m.date||'No timestamp'}: ${m.body}`;}),f.limit]),'User-provided context: '+(session?.context||'None'),'No conclusion here establishes another person’s feelings.'].join('\n\n');const url=URL.createObjectURL(new Blob([out],{type:'text/plain'}));const a=document.createElement('a');a.href=url;a.download='between-report.txt';a.click();URL.revokeObjectURL(url);}
- function ask(q){setQuestion(q);const terms=q.toLowerCase().split(/\W+/).filter(t=>t.length>3);const hits=messages.filter(m=>terms.some(t=>m.body.toLowerCase().includes(t))).slice(0,3);setAnswer(hits.length?'These messages match words in your question. Open each excerpt and review the context. ':'No matching evidence was found by local keyword search. Try a word from the conversation.');setEvidence(hits.length?hits.map(m=>m.id):null);}
+  function exportReport() {
+    const out = [
+      "BETWEEN — Local conversation report",
+      "Imported conversation",
+      `${stats.total} messages · ${stats.people.length} participants`,
+      "Calculated statistics and keyword matches.",
+      ...insights.flatMap((f) => [
+        f.title,
+        f.body,
+        ...f.ids.map((id) => {
+          const m = messages.find((x) => x.id === id);
+          return `${m.speaker} · ${m.date || "No timestamp"}: ${m.body}`;
+        }),
+        f.limit,
+      ]),
+      "User-provided context: " + (session?.context || "None"),
+      "No conclusion here establishes another person’s feelings.",
+    ].join("\n\n");
+    const url = URL.createObjectURL(new Blob([out], { type: "text/plain" }));
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = "between-report.txt";
+    a.click();
+    URL.revokeObjectURL(url);
+  }
+  function ask(q) {
+    setQuestion(q);
+    const terms = q
+      .toLowerCase()
+      .split(/\W+/)
+      .filter((t) => t.length > 3);
+    const hits = messages
+      .filter((m) => terms.some((t) => m.body.toLowerCase().includes(t)))
+      .slice(0, 3);
+    setAnswer(
+      hits.length
+        ? "These messages match words in your question. Open each excerpt and review the context. "
+        : "No matching evidence was found by local keyword search. Try a word from the conversation.",
+    );
+    setEvidence(hits.length ? hits.map((m) => m.id) : null);
+  }
 
- return <div className="app"><div className="main"><header><a className="brand" href="#" onClick={e=>{e.preventDefault();setView('home');window.scrollTo(0,0);}}><span className="brand-icon"><MessageCircle size={21}/><span/></span>between</a><div className="header-actions"><button className="user-avatar" aria-label="Edit profile" onClick={()=>setView('settings')}><ProfileAvatar profile={profile}/></button></div></header>{offline&&<div className="offline-banner"><WifiOff size={15}/>Offline · local imports and reports still work</div>}<main>
- {view==='home'&&<><section className="home-heading"><h1>{profile.name?`Hey, ${profile.name.split(/\s+/)[0]}`:'Home'}</h1><button className="circle-button" aria-label="Import chat" onClick={openImport}><Plus size={22}/></button></section><label className="home-search"><Search size={19}/><input aria-label="Search your chats" placeholder="Search chats" value={query} onChange={e=>{setQuery(e.target.value);setView('history');}}/></label><section className="home-actions" aria-label="Quick actions"><button className="primary import-action" onClick={openImport}><Upload size={20}/><span>Import chat</span><Plus size={19}/></button><div className="home-tools"><button onClick={()=>openDestination('Ask & reflect')}><Search size={21}/><span>Search messages</span></button><button onClick={()=>{openDestination('Ask & reflect');setTimeout(()=>document.querySelector('.draft-section')?.scrollIntoView({behavior:window.matchMedia('(prefers-reduced-motion: reduce)').matches?'auto':'smooth'}),0);}}><MessageCircle size={21}/><span>Draft a reply</span></button></div></section><div className="section-heading"><h2>Your chats</h2><button onClick={()=>setView('history')}>See all <ChevronRight size={15}/></button></div><div className="filter-tabs">{categories.map(([name,Icon])=><button className={category===name?'selected':''} key={name} onClick={()=>setCategory(name)}>{name==='All conversations'?'All':name}</button>)}</div>{session?<button className="chat-row" onClick={()=>{setView('report');setTab('Overview');}}><span className="duo-avatar"><span>{stats.people[0]?.[0]}</span><span>{stats.people[1]?.[0]}</span></span><span className="chat-row-copy"><strong>{stats.people.join(' & ')}</strong><small>{session.sample?'Fictional sample':'Local conversation'} · {stats.total} messages</small></span><ChevronRight size={18}/></button>:<button className="add-chat-row" onClick={openImport}><span className="dashed-icon"><Plus size={22}/></span><span><strong>{category==='All conversations'?'Add your first conversation':`Add a ${category.toLowerCase().replace(/s$/,'')} chat`}</strong></span><ChevronRight size={18}/></button>}<div className="section-heading explore-heading"><h2>Sample chat</h2></div><button className="sample-card" onClick={loadSample}><div className="sample-card-top"><span className="sample-label"><span/> FICTIONAL SAMPLE</span><ArrowUpRight size={20}/></div><div className="sample-card-body"><span className="sample-avatars"><span>A</span><span>J</span></span><div><h3>Alex & Jamie</h3></div></div><div className="sample-card-bottom"><span><BarChart3 size={14}/>24 messages</span><span><Quote size={14}/>View report</span><ChevronRight size={16}/></div></button></>}
- {view==='settings'&&<><div className="screen-title"><h1>Settings</h1></div><Profile profile={profile} onSave={setProfile}/><section className="settings-group"><h3>App</h3><button className="settings-row" onClick={install}><span className="quick-icon blue"><Smartphone size={21}/></span><span><strong>Add to Home Screen</strong></span><ChevronRight size={18}/></button>{installStatus&&<p className="install-status" role="status">{installStatus}</p>}<button className="settings-row" onClick={()=>setModal('privacy')}><span className="quick-icon violet"><ShieldCheck size={21}/></span><span><strong>Privacy & storage</strong><small>Conversation data stays in tab memory</small></span><ChevronRight size={18}/></button><button className="settings-row" onClick={()=>setModal('about')}><span className="quick-icon pink"><Info size={21}/></span><span><strong>About Between</strong></span><ChevronRight size={18}/></button></section><section className="settings-group"><h3>Your data</h3><p className="settings-description">Refreshing or closing clears your conversation. Installing the app does not save chats. The offline app shell stores only application files.</p><button className="settings-row danger" disabled={!session} onClick={()=>setModal('delete')}><Trash2 size={21}/><span><strong>Clear conversation</strong><small>Remove the current report and drafts</small></span><ChevronRight size={18}/></button></section></>}
- {view==='history'&&<><div className="page-intro"><div><h1>Chats</h1></div><button className="primary" onClick={openImport}><Plus size={17}/>New conversation</button></div><label className="searchbox"><Search size={17}/><input value={query} onChange={e=>setQuery(e.target.value)} placeholder="Search participants"/></label>{session&&stats.people.join(' ').toLowerCase().includes(query.toLowerCase())?<button className="history-card" onClick={()=>setView('report')}><span className="feature-icon"><MessageCircle/></span><div><h3>{stats.people.join(' & ')}</h3><p>{stats.total} messages · {session.sample?'Fictional sample':'Local report'}</p></div><ArrowRight/></button>:<div className="empty"><MessageCircle size={35}/><h3>{query?'No matching conversations':'No chats yet.'}</h3><p>Add a conversation or explore our fictional sample.</p><button className="primary" onClick={openImport}>Add a conversation <Plus size={16}/></button></div>}</>}
- {view==='report'&&session&&<><button className="back" onClick={()=>setView('home')}><ArrowLeft size={15}/>Back to your space</button><div className="report-heading"><div><div className="eyebrow">{session.sample?'FICTIONAL SAMPLE REPORT':'YOUR LOCAL CONVERSATION REPORT'}</div><h1>{stats.people.join(' & ')}</h1><p>{stats.total} messages · {Object.keys(stats.days).length} active days · {session.focus}</p></div><div className="report-actions"><button className="secondary" onClick={exportReport}><Download size={16}/>Export report</button><button className="icon-button" aria-label="Delete conversation" onClick={()=>setModal('delete')}><Trash2 size={18}/></button></div></div>{session.warnings.map((w,i)=><p className="warning" key={i}>{w}</p>)}<div className="category-tabs report-tabs">{['Overview','Patterns & evidence','Conversation','Ask & reflect'].map(t=><button className={tab===t?'chosen':''} key={t} onClick={()=>setTab(t)}>{t}</button>)}</div>{(tab==='Overview'||tab==='Patterns & evidence')&&<><div className="report-grid"><section className="report-main"><div className="report-summary"><h2>Your conversation at a glance.</h2><p>This report highlights what can be measured and gives you excerpts to explore. It cannot establish anyone’s feelings or intentions.</p><div className="coverage">{stats.total} messages included</div></div><div className="section-head"><h3>Things worth noticing</h3><span>TRACEABLE TO YOUR WORDS</span></div>{insights.map((f,i)=><article className="finding" key={f.title}><div className="finding-number">0{i+1}</div><div><span className="tiny-label">{f.kind}</span><h3>{f.title}</h3><p>{f.body}</p><button className="evidence-link" onClick={()=>setEvidence(f.ids)}><Quote size={13}/>Explore {f.ids.length} supporting excerpts <ArrowUpRight size={13}/></button><details><summary>What this doesn’t tell us</summary><p>{f.limit}</p></details></div></article>)}<div className="context-box"><h3>The bigger picture</h3><p>Selected focus: {session.focus}</p><label>Your context <span>(unverified, optional)</span><textarea value={session.context} onChange={e=>setSession({...session,context:e.target.value})} placeholder="Anything the messages don't show?"/></label><small>Context is saved with this session; it doesn’t change these findings.</small></div></section><aside className="report-aside"><div className="stats-card"><span className="tiny-label">THE CONVERSATION, IN NUMBERS</span><h3>Participation</h3><div className="big-number">{stats.total}<span>messages in this report</span></div>{stats.people.map((p,i)=><div className="person-stat" key={p}><div><span><i style={{background:i%2?'#ab98df':'#789ff0'}}/>{p}</span><strong>{stats.counts[p]} <small>({Math.round(stats.counts[p]/stats.total*100)}%)</small></strong></div><div className="bar-track"><span style={{width:`${stats.counts[p]/stats.total*100}%`,background:i%2?'#ab98df':'#789ff0'}}/></div></div>)}<p className="stats-caveat">Message count is participation, not a measure of affection.</p><hr/><h4>Conversation starts</h4>{stats.people.map(p=><div className="metric" key={p}><span>{p}</span><strong>{stats.starts[p]}</strong></div>)}<h4>Reply-time ranges</h4>{stats.people.map(p=>{const r=stats.replies[p];return <div className="metric" key={p}><span>{p}</span><strong>{r.length?`${Math.min(...r)}–${Math.max(...r)} min`:'No timed replies'}</strong></div>;})}<details><summary>How we calculate this</summary><p>A new conversation begins after an 8-hour gap, or at the first dated message. Reply times only count speaker changes with nonnegative gaps under 8 hours. Dates use the chosen DMY/MDY format and your browser’s local timezone. Attachments are excluded. Missing timestamps are excluded from timing metrics.</p></details></div><div className="stats-card activity"><span className="tiny-label">ACTIVITY OVER TIME</span><h3>Daily activity</h3><div className="activity-bars">{Object.entries(stats.days).slice(-14).map(([day,count])=><div key={day} title={`${day}: ${count} messages`}><span style={{height:`${count/Math.max(...Object.values(stats.days))*85}px`}}/><small>{day.slice(8)}</small></div>)}</div><p>{Object.keys(stats.days).length?'Messages per active day · last 14 active days':'No timestamps available'}</p></div><div className="question-card"><h3>Conversation starter</h3><p>“When do you feel most understood in our conversations?”</p><button onClick={()=>setTab('Ask & reflect')}>Make space to reflect <ArrowUpRight size={15}/></button></div></aside></div></>}{tab==='Conversation'&&<section className="conversation-panel"><h3>Your source conversation</h3><p>All {messages.length} selected, redacted messages. Quotes in the report link back here.</p>{messages.map(m=><div className="source-message" id={m.id} key={m.id}><span className="avatar">{m.speaker[0]}</span><div><strong>{m.speaker}</strong><time>{m.date?new Date(m.date).toLocaleString():'Timestamp unavailable'}</time><p>{m.body}</p><small>{m.id}</small></div></div>)}</section>}{tab==='Ask & reflect'&&<div className="reflect-grid"><section className="stats-card"><Search size={25}/><h2>Ask your chat</h2><p>Search the imported messages by keyword.</p><div className="suggested">{['What supports this interpretation?','What did we say about work?','Where did we say thank you?'].map(q=><button key={q} onClick={()=>ask(q)}>{q}<ArrowUpRight size={14}/></button>)}</div><form onSubmit={e=>{e.preventDefault();ask(question);}}><label>Search the conversation<input value={question} onChange={e=>setQuestion(e.target.value)} placeholder="Find a word or topic…" required/></label><button className="primary" type="submit">Find evidence <Search size={15}/></button></form>{answer&&<p className="answer" role="status">{answer}</p>}</section><section className="stats-card draft-section"><MessageCircle size={25}/><h2>Draft a reply</h2><p>Editable template.</p><label>What would you like to talk about?<input value={draftGoal} onChange={e=>setDraftGoal(e.target.value)} placeholder="Making more time to talk"/></label><label>How should it sound?<select value={tone} onChange={e=>setTone(e.target.value)}>{['Gentle','Direct','Brief'].map(t=><option key={t}>{t}</option>)}</select></label><button className="primary" disabled={!draftGoal.trim()} onClick={()=>setDraft(tone==='Brief'?`Can we talk about ${draftGoal}? I'd like to hear your perspective.`:tone==='Direct'?`I'd like us to talk about ${draftGoal}. It matters to me, and I want to understand how you see it. When would be a good time?`:`I've been thinking about ${draftGoal}, and I'd love to talk when we both have a little space. I want to understand your perspective, too.`)}>Create a starting point <ArrowRight size={15}/></button>{draft&&<label>Your editable draft<textarea value={draft} onChange={e=>setDraft(e.target.value)}/><small>Nothing is sent automatically.</small></label>}</section></div>}</>}
- </main><nav className="tab-bar" aria-label="Main navigation"><button aria-current={view==='home'?'page':undefined} className={view==='home'?'active':''} onClick={()=>{setView('home');window.scrollTo(0,0);}}><Home size={22}/><span>Home</span></button><button aria-current={view==='history'?'page':undefined} className={view==='history'?'active':''} onClick={()=>{setView('history');window.scrollTo(0,0);}}><MessageCircle size={22}/><span>Chats</span></button><button aria-current={view==='report'&&tab!=='Ask & reflect'?'page':undefined} className={view==='report'&&tab!=='Ask & reflect'?'active':''} onClick={()=>openDestination('Overview')}><BarChart3 size={22}/><span>Insights</span></button><button aria-current={view==='report'&&tab==='Ask & reflect'?'page':undefined} className={view==='report'&&tab==='Ask & reflect'?'active':''} onClick={()=>openDestination('Ask & reflect')}><Search size={22}/><span>Ask</span></button><button aria-current={view==='settings'?'page':undefined} className={view==='settings'?'active':''} onClick={()=>{setView('settings');window.scrollTo(0,0);}}><Settings size={22}/><span>Settings</span></button></nav></div>
- {modal&&<div className="overlay" onClick={e=>{if(e.target===e.currentTarget)setModal(null);}}><section className={'modal '+(modal==='import'?'import-modal':'')} role="dialog" aria-modal="true" aria-labelledby="modal-title" onKeyDown={e=>{if(e.key==='Escape')setModal(null);if(e.key==='Tab'){const els=[...e.currentTarget.querySelectorAll('button,input,select,textarea,a[href]')].filter(el=>!el.disabled&&el.offsetParent!==null);if(e.shiftKey&&document.activeElement===els[0]){e.preventDefault();els.at(-1)?.focus();}else if(!e.shiftKey&&document.activeElement===els.at(-1)){e.preventDefault();els[0]?.focus();}}}} ref={el=>{if(el&&!el.contains(document.activeElement))el.querySelector('button')?.focus();}}><button className="close icon-button" aria-label="Close dialog" onClick={()=>setModal(null)}><X size={20}/></button>{modal==='import'?<><div className="eyebrow">IMPORT CHAT · STEP {step} OF 2</div><h2 id="modal-title">{step===1?'Import a chat':'Review your chat'}</h2><p>{step===1?'Import a WhatsApp ZIP or text export.':'Review exactly what will be included. Nothing leaves your browser.'}</p><div className="step-progress"><span/><span className={step===2?'filled':''}/></div>{step===1?<><input hidden type="file" accept=".zip,.txt,application/zip,application/x-zip-compressed,text/plain" ref={file} onChange={e=>readFile(e.target.files[0])}/><button className="upload-zone" onClick={()=>file.current.click()} onDragOver={e=>e.preventDefault()} onDrop={e=>{e.preventDefault();readFile(e.dataTransfer.files[0]);}}><span className="feature-icon"><Upload size={24}/></span><strong>{importing?'Opening chat…':'Choose a chat export'}</strong><span>WhatsApp .zip or .txt · ZIP up to 50 MB</span></button><p className="import-file-status" role="status">{importing?'Extracting chat text…':importName?`${importName} · attachments excluded`:'Chat text up to 2 MB. Attachments are not imported.'}</p><label>Date format<select value={order} onChange={e=>setOrder(e.target.value)}><option value="AUTO">Detect automatically</option><option value="DMY">Day / month / year</option><option value="MDY">Month / day / year</option></select></label><div className="local-note"><Lock size={14}/>Processed on this device.</div><button className="primary full" disabled={importing||!text.trim()} onClick={()=>{if(parsed.messages.length<2){setError('We couldn’t find enough messages. Choose a WhatsApp ZIP or text export.');return;}setStep(2);setError('');}}>Review conversation <ArrowRight size={16}/></button><button className="text-button" disabled={importing} onClick={()=>{setText(sample);setImportName('');setError('');}}>Try with fictional sample text</button></>:<><label>Date format<select value={order} onChange={e=>setOrder(e.target.value)}><option value="AUTO">Detect automatically</option><option value="DMY">Day / month / year</option><option value="MDY">Month / day / year</option></select></label><p className="import-file-status">Using {parsed.dateOrder==='MDY'?'month/day/year':'day/month/year'}</p><div className="review-summary"><span><strong>{preview.length}</strong>messages</span><span><strong>{new Set(preview.map(m=>m.speaker)).size}</strong>participants</span><span><strong>{Object.keys(statistics(preview).days).length}</strong>active days</span></div>{parsed.warnings.map((w,i)=><p key={i} className="warning">{w}</p>)}<div className="two-fields"><label>Connection<select value={category} onChange={e=>setCategory(e.target.value)}>{categories.map(([n])=><option key={n}>{n}</option>)}</select></label><label>Focus<select value={focus} onChange={e=>setFocus(e.target.value)}>{['Understand our communication','Notice positive patterns','Explore participation','Prepare a conversation'].map(t=><option key={t}>{t}</option>)}</select></label></div><div className="two-fields"><label>From date<input type="date" value={start} onChange={e=>setStart(e.target.value)}/></label><label>To date<input type="date" value={end} onChange={e=>setEnd(e.target.value)}/></label></div><h4>Replace names <span className="muted">(optional)</span></h4><div className="two-fields">{[...new Set(parsed.messages.map(m=>m.speaker))].map((p,i)=><label key={p}>{p}<input value={names[p]||''} onChange={e=>setNames({...names,[p]:e.target.value})} placeholder={`Person ${i+1}`}/></label>)}</div><label className="checkbox"><input type="checkbox" checked={contacts} onChange={e=>setContacts(e.target.checked)}/>Replace detected phone numbers and emails</label><small>Detection can miss sensitive details. Review the text below.</small><label>Anything we should know? <span className="muted">(optional)</span><textarea value={context} onChange={e=>setContext(e.target.value)} placeholder="Missing context, inside jokes, or things discussed offline…"/></label><details className="preview-details"><summary>Review messages & exclusions ({preview.length} included)</summary><div className="message-preview">{parsed.messages.map(m=>{const clean=redact([m],names,contacts)[0];return <label className="preview-line" key={m.id}><input type="checkbox" aria-label={`Include ${m.id}`} checked={!excluded.includes(m.id)} onChange={e=>setExcluded(e.target.checked?excluded.filter(x=>x!==m.id):[...excluded,m.id])}/><span><strong>{clean.speaker}</strong> · {clean.date?new Date(clean.date).toLocaleString():'No date'}<br/>{clean.body}</span></label>;})}</div></details><div className="local-note"><ShieldCheck size={17}/>Refreshing clears this conversation.</div><div className="modal-actions"><button className="secondary" onClick={()=>setStep(1)}><ArrowLeft size={15}/>Back</button><button className="primary" onClick={analyse}>Create report <ArrowRight size={16}/></button></div></>}{error&&<p className="error" role="alert">{error}</p>}</>:modal==='privacy'?<><ShieldCheck size={30}/><h2 id="modal-title">Privacy & storage</h2><p>Your conversation is processed in browser memory. It is not uploaded or saved to conversation history. No account or analytics are used. Your optional profile name and photo are stored on this device. The installed production app caches application files for offline use, never your messages or reports.</p><p>Refreshing or closing this tab clears the session. Exported files remain on your device until you delete them.</p><p>Name and contact replacement reduce exposure but cannot guarantee anonymity. No external provider receives your messages.</p><button className="primary" onClick={()=>setModal(null)}>Got it <Check size={16}/></button></>:modal==='delete'?<><Trash2 size={30}/><h2 id="modal-title">Clear this conversation?</h2><p>This removes the conversation, local report, context and drafts from this app session. Exported files on your device are unaffected.</p><div className="modal-actions"><button className="secondary" onClick={()=>setModal(null)}>Keep it</button><button className="primary" onClick={remove}>Clear session</button></div></>:<><h2 id="modal-title">About Between</h2><p>Between helps you review your conversations and the messages behind each finding.</p><p>This version uses calculated statistics and keyword matches. Accounts, contextual interpretation and cloud storage are not connected.</p><button className="primary" onClick={()=>{setModal(null);loadSample();}}>Explore the fictional sample <ArrowRight size={16}/></button></>}</section></div>}
- {evidence&&<div className="overlay" onClick={e=>{if(e.target===e.currentTarget)setEvidence(null);}}><section className="modal evidence-modal" role="dialog" aria-modal="true" aria-label="Source evidence" tabIndex={-1} ref={el=>el?.focus()} onKeyDown={e=>{if(e.key==='Escape')setEvidence(null);if(e.key==='Tab'){const els=[...e.currentTarget.querySelectorAll('button')];if(e.shiftKey&&document.activeElement===els[0]){e.preventDefault();els.at(-1)?.focus();}else if(!e.shiftKey&&document.activeElement===els.at(-1)){e.preventDefault();els[0]?.focus();}}}}><button className="close icon-button" aria-label="Close evidence" onClick={()=>setEvidence(null)}><X size={20}/></button><div className="eyebrow">BACK TO THE WORDS</div><h2>Source messages</h2><p>Highlighted messages support this observation. Neighbouring messages may add context or complicate it.</p>{messages.filter((m,i)=>evidence.includes(m.id)||evidence.includes(messages[i-1]?.id)||evidence.includes(messages[i+1]?.id)).map(m=><div className={'source-message '+(evidence.includes(m.id)?'highlighted':'')} key={m.id}><div><strong>{m.speaker}</strong><time>{m.date?new Date(m.date).toLocaleString():'No timestamp'}</time><p>{m.body}</p><small>{m.id} · {evidence.includes(m.id)?'Referenced excerpt':'Surrounding context'}</small></div></div>)}<button className="secondary" onClick={()=>setEvidence(null)}>Return to report <ArrowRight size={15}/></button></section></div>}
- </div>
+  return (
+    <div className="app">
+      <div className="main">
+        <header>
+          <a
+            className="brand"
+            href="#"
+            onClick={(e) => {
+              e.preventDefault();
+              setView("home");
+              window.scrollTo(0, 0);
+            }}
+          >
+            <span className="brand-icon">
+              <MessageCircle size={21} />
+              <span />
+            </span>
+            between
+          </a>
+          <div className="header-actions">
+            <button
+              className="user-avatar"
+              aria-label="Edit profile"
+              onClick={() => setView("settings")}
+            >
+              <ProfileAvatar profile={profile} />
+            </button>
+          </div>
+        </header>
+        {offline && (
+          <div className="offline-banner">
+            <WifiOff size={15} />
+            Offline · local imports and reports still work
+          </div>
+        )}
+        <main>
+          {view === "home" && (
+            <>
+              <section className="home-heading">
+                <h1>{profile.name ? `Hey, ${profile.name.split(/\s+/)[0]}` : "Home"}</h1>
+              </section>
+              <label className="home-search">
+                <Search size={19} />
+                <input
+                  aria-label="Search your chats"
+                  placeholder="Search chats"
+                  value={query}
+                  onChange={(e) => {
+                    setQuery(e.target.value);
+                    setView("history");
+                  }}
+                />
+              </label>
+              <section className="home-actions" aria-label="Quick actions">
+                <button className="import-tile" onClick={openImport}>
+                  <span className="quick-icon blue">
+                    <Upload size={22} />
+                  </span>
+                  <span>
+                    <strong>Import chat</strong>
+                    <small>WhatsApp ZIP or text</small>
+                  </span>
+                  <Plus size={19} />
+                </button>
+                <div className="home-tools">
+                  <button onClick={() => openDestination("Conversation")}>
+                    <Search size={21} />
+                    <span>Search messages</span>
+                  </button>
+                  <button
+                    onClick={() => {
+                      openDestination("Ask & reflect");
+                      setTimeout(
+                        () =>
+                          document
+                            .querySelector(".draft-section")
+                            ?.scrollIntoView({
+                              behavior: window.matchMedia("(prefers-reduced-motion: reduce)")
+                                .matches
+                                ? "auto"
+                                : "smooth",
+                            }),
+                        0,
+                      );
+                    }}
+                  >
+                    <MessageCircle size={21} />
+                    <span>Draft a reply</span>
+                  </button>
+                </div>
+              </section>
+              <div className="section-heading">
+                <h2>Your chats</h2>
+                <button onClick={() => setView("history")}>
+                  See all <ChevronRight size={15} />
+                </button>
+              </div>
+              <div className="filter-tabs">
+                {categories.map(([name, Icon]) => (
+                  <button
+                    className={category === name ? "selected" : ""}
+                    key={name}
+                    onClick={() => setCategory(name)}
+                  >
+                    {name === "All conversations" ? "All" : name}
+                  </button>
+                ))}
+              </div>
+              {session && (category === "All conversations" || session.connection === category) ? (
+                <button
+                  className="chat-row"
+                  onClick={() => {
+                    setView("report");
+                    setTab("Overview");
+                  }}
+                >
+                  <span className="duo-avatar">
+                    <span>{stats.people[0]?.[0]}</span>
+                    <span>{stats.people[1]?.[0]}</span>
+                  </span>
+                  <span className="chat-row-copy">
+                    <strong>{stats.people.join(" & ")}</strong>
+                    <small>
+                      {stats.total} messages · {session.filename}
+                    </small>
+                  </span>
+                  <ChevronRight size={18} />
+                </button>
+              ) : (
+                <button className="add-chat-row" onClick={openImport}>
+                  <span className="dashed-icon">
+                    <Plus size={22} />
+                  </span>
+                  <span>
+                    <strong>
+                      {category === "All conversations"
+                        ? "Add your first conversation"
+                        : `Add a ${category.toLowerCase().replace(/s$/, "")} chat`}
+                    </strong>
+                  </span>
+                  <ChevronRight size={18} />
+                </button>
+              )}
+            </>
+          )}
+          {view === "settings" && (
+            <>
+              <div className="screen-title">
+                <h1>Settings</h1>
+              </div>
+              <Profile profile={profile} onSave={setProfile} />
+              <section className="settings-group">
+                <h3>App</h3>
+                <button className="settings-row" onClick={install}>
+                  <span className="quick-icon blue">
+                    <Smartphone size={21} />
+                  </span>
+                  <span>
+                    <strong>Add to Home Screen</strong>
+                  </span>
+                  <ChevronRight size={18} />
+                </button>
+                {installStatus && (
+                  <p className="install-status" role="status">
+                    {installStatus}
+                  </p>
+                )}
+                <button className="settings-row" onClick={() => setModal("privacy")}>
+                  <span className="quick-icon violet">
+                    <ShieldCheck size={21} />
+                  </span>
+                  <span>
+                    <strong>Privacy & storage</strong>
+                    <small>Conversation data stays in tab memory</small>
+                  </span>
+                  <ChevronRight size={18} />
+                </button>
+                <button className="settings-row" onClick={() => setModal("about")}>
+                  <span className="quick-icon pink">
+                    <Info size={21} />
+                  </span>
+                  <span>
+                    <strong>About Between</strong>
+                  </span>
+                  <ChevronRight size={18} />
+                </button>
+              </section>
+              <section className="settings-group">
+                <h3>Your data</h3>
+                <p className="settings-description">
+                  Refreshing or closing clears your conversation. Installing the app does not save
+                  chats. The offline app shell stores only application files.
+                </p>
+                <button
+                  className="settings-row danger"
+                  disabled={!session}
+                  onClick={() => setModal("delete")}
+                >
+                  <Trash2 size={21} />
+                  <span>
+                    <strong>Clear conversation</strong>
+                    <small>Remove the current report and drafts</small>
+                  </span>
+                  <ChevronRight size={18} />
+                </button>
+              </section>
+            </>
+          )}
+          {view === "history" && (
+            <>
+              <div className="page-intro">
+                <div>
+                  <h1>Chats</h1>
+                </div>
+                <button className="primary" onClick={openImport}>
+                  <Plus size={17} />
+                  New conversation
+                </button>
+              </div>
+              <label className="searchbox">
+                <Search size={17} />
+                <input
+                  value={query}
+                  onChange={(e) => setQuery(e.target.value)}
+                  placeholder="Search participants"
+                />
+              </label>
+              {session && stats.people.join(" ").toLowerCase().includes(query.toLowerCase()) ? (
+                <button className="history-card" onClick={() => setView("report")}>
+                  <span className="feature-icon">
+                    <MessageCircle />
+                  </span>
+                  <div>
+                    <h3>{stats.people.join(" & ")}</h3>
+                    <p>
+                      {stats.total} messages · {session.filename}
+                    </p>
+                  </div>
+                  <ArrowRight />
+                </button>
+              ) : (
+                <div className="empty">
+                  <MessageCircle size={35} />
+                  <h3>{query ? "No matching conversations" : "No chats yet."}</h3>
+                  <p>Import a chat to get started.</p>
+                  <button className="primary" onClick={openImport}>
+                    Add a conversation <Plus size={16} />
+                  </button>
+                </div>
+              )}
+            </>
+          )}
+          {view === "report" && !session && (
+            <section className="empty">
+              <MessageCircle size={34} />
+              <h2>{tab === "Ask & reflect" ? "Ask & reflect" : "Insights"}</h2>
+              <p>Import a chat to get started.</p>
+              <button className="primary" onClick={openImport}>
+                Import chat
+                <Upload size={17} />
+              </button>
+            </section>
+          )}
+          {view === "report" && session && (
+            <>
+              <button className="back" onClick={() => setView("home")}>
+                <ArrowLeft size={15} />
+                Home
+              </button>
+              <div className="report-heading">
+                <div>
+                  <div className="eyebrow">{session.filename}</div>
+                  <h1>{stats.people.join(" & ")}</h1>
+                  <p>
+                    {stats.total} messages · {Object.keys(stats.days).length} active days ·{" "}
+                    {session.focus}
+                  </p>
+                </div>
+                <div className="report-actions">
+                  <button className="secondary" onClick={exportReport}>
+                    <Download size={16} />
+                    Export report
+                  </button>
+                  <button
+                    className="icon-button"
+                    aria-label="Delete conversation"
+                    onClick={() => setModal("delete")}
+                  >
+                    <Trash2 size={18} />
+                  </button>
+                </div>
+              </div>
+              <div className="category-tabs report-tabs">
+                {["Overview", "Patterns & evidence", "Conversation", "Ask & reflect"].map((t) => (
+                  <button className={tab === t ? "chosen" : ""} key={t} onClick={() => setTab(t)}>
+                    {t}
+                  </button>
+                ))}
+              </div>
+              {tab === "Overview" && <Overview messages={messages} onEvidence={setEvidence} />}{" "}
+              {tab === "Patterns & evidence" && (
+                <PatternsView
+                  findings={insights}
+                  onEvidence={setEvidence}
+                  context={session.context}
+                  onContext={(context) => setSession({ ...session, context })}
+                />
+              )}{" "}
+              {tab === "Conversation" && (
+                <ConversationView messages={messages} onEvidence={setEvidence} />
+              )}
+              {tab === "Ask & reflect" && (
+                <div className="reflect-grid">
+                  <section className="stats-card">
+                    <Search size={25} />
+                    <h2>Ask your chat</h2>
+                    <p>Search the imported messages by keyword.</p>
+                    <div className="suggested">
+                      {[
+                        "What supports this interpretation?",
+                        "What did we say about work?",
+                        "Where did we say thank you?",
+                      ].map((q) => (
+                        <button key={q} onClick={() => ask(q)}>
+                          {q}
+                          <ArrowUpRight size={14} />
+                        </button>
+                      ))}
+                    </div>
+                    <form
+                      onSubmit={(e) => {
+                        e.preventDefault();
+                        ask(question);
+                      }}
+                    >
+                      <label>
+                        Search the conversation
+                        <input
+                          value={question}
+                          onChange={(e) => setQuestion(e.target.value)}
+                          placeholder="Find a word or topic…"
+                          required
+                        />
+                      </label>
+                      <button className="primary" type="submit">
+                        Find evidence <Search size={15} />
+                      </button>
+                    </form>
+                    {answer && (
+                      <p className="answer" role="status">
+                        {answer}
+                      </p>
+                    )}
+                  </section>
+                  <section className="stats-card draft-section">
+                    <MessageCircle size={25} />
+                    <h2>Draft a reply</h2>
+                    <p>Editable template.</p>
+                    <label>
+                      What would you like to talk about?
+                      <input
+                        value={draftGoal}
+                        onChange={(e) => setDraftGoal(e.target.value)}
+                        placeholder="Making more time to talk"
+                      />
+                    </label>
+                    <label>
+                      How should it sound?
+                      <select value={tone} onChange={(e) => setTone(e.target.value)}>
+                        {["Gentle", "Direct", "Brief"].map((t) => (
+                          <option key={t}>{t}</option>
+                        ))}
+                      </select>
+                    </label>
+                    <button
+                      className="primary"
+                      disabled={!draftGoal.trim()}
+                      onClick={() =>
+                        setDraft(
+                          tone === "Brief"
+                            ? `Can we talk about ${draftGoal}? I'd like to hear your perspective.`
+                            : tone === "Direct"
+                              ? `I'd like us to talk about ${draftGoal}. It matters to me, and I want to understand how you see it. When would be a good time?`
+                              : `I've been thinking about ${draftGoal}, and I'd love to talk when we both have a little space. I want to understand your perspective, too.`,
+                        )
+                      }
+                    >
+                      Create a starting point <ArrowRight size={15} />
+                    </button>
+                    {draft && (
+                      <label>
+                        Your editable draft
+                        <textarea value={draft} onChange={(e) => setDraft(e.target.value)} />
+                        <small>Nothing is sent automatically.</small>
+                      </label>
+                    )}
+                  </section>
+                </div>
+              )}
+            </>
+          )}
+        </main>
+        <nav className="tab-bar" aria-label="Main navigation">
+          <button
+            aria-current={view === "home" ? "page" : undefined}
+            className={view === "home" ? "active" : ""}
+            onClick={() => {
+              setView("home");
+              window.scrollTo(0, 0);
+            }}
+          >
+            <Home size={22} />
+            <span>Home</span>
+          </button>
+          <button
+            aria-current={view === "history" ? "page" : undefined}
+            className={view === "history" ? "active" : ""}
+            onClick={() => {
+              setView("history");
+              window.scrollTo(0, 0);
+            }}
+          >
+            <MessageCircle size={22} />
+            <span>Chats</span>
+          </button>
+          <button
+            aria-current={view === "report" && tab !== "Ask & reflect" ? "page" : undefined}
+            className={view === "report" && tab !== "Ask & reflect" ? "active" : ""}
+            onClick={() => openDestination("Overview")}
+          >
+            <BarChart3 size={22} />
+            <span>Insights</span>
+          </button>
+          <button
+            aria-current={view === "report" && tab === "Ask & reflect" ? "page" : undefined}
+            className={view === "report" && tab === "Ask & reflect" ? "active" : ""}
+            onClick={() => openDestination("Ask & reflect")}
+          >
+            <Search size={22} />
+            <span>Ask</span>
+          </button>
+          <button
+            aria-current={view === "settings" ? "page" : undefined}
+            className={view === "settings" ? "active" : ""}
+            onClick={() => {
+              setView("settings");
+              window.scrollTo(0, 0);
+            }}
+          >
+            <Settings size={22} />
+            <span>Settings</span>
+          </button>
+        </nav>
+      </div>
+      {modal && (
+        <div
+          className="overlay"
+          onClick={(e) => {
+            if (e.target === e.currentTarget) setModal(null);
+          }}
+        >
+          <section
+            className={"modal " + (modal === "import" ? "import-modal" : "")}
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="modal-title"
+            onKeyDown={(e) => {
+              if (e.key === "Escape") setModal(null);
+              if (e.key === "Tab") {
+                const els = [
+                  ...e.currentTarget.querySelectorAll("button,input,select,textarea,a[href]"),
+                ].filter((el) => !el.disabled && el.offsetParent !== null);
+                if (e.shiftKey && document.activeElement === els[0]) {
+                  e.preventDefault();
+                  els.at(-1)?.focus();
+                } else if (!e.shiftKey && document.activeElement === els.at(-1)) {
+                  e.preventDefault();
+                  els[0]?.focus();
+                }
+              }
+            }}
+            ref={(el) => {
+              if (el && !el.contains(document.activeElement)) el.querySelector("button")?.focus();
+            }}
+          >
+            <button
+              className="close icon-button"
+              aria-label="Close dialog"
+              onClick={() => setModal(null)}
+            >
+              <X size={20} />
+            </button>
+            {modal === "import" ? (
+              <ImportFlow onComplete={completeImport} />
+            ) : modal === "privacy" ? (
+              <>
+                <ShieldCheck size={30} />
+                <h2 id="modal-title">Privacy & storage</h2>
+                <p>
+                  Your conversation is processed in browser memory. It is not uploaded or saved to
+                  conversation history. No account or analytics are used. Your optional profile name
+                  and photo are stored on this device. The installed production app caches
+                  application files for offline use, never your messages or reports.
+                </p>
+                <p>
+                  Refreshing or closing this tab clears the session. Exported files remain on your
+                  device until you delete them.
+                </p>
+                <p>
+                  Name and contact replacement reduce exposure but cannot guarantee anonymity. No
+                  external provider receives your messages.
+                </p>
+                <button className="primary" onClick={() => setModal(null)}>
+                  Got it <Check size={16} />
+                </button>
+              </>
+            ) : modal === "delete" ? (
+              <>
+                <Trash2 size={30} />
+                <h2 id="modal-title">Clear this conversation?</h2>
+                <p>
+                  This removes the conversation, local report, context and drafts from this app
+                  session. Exported files on your device are unaffected.
+                </p>
+                <div className="modal-actions">
+                  <button className="secondary" onClick={() => setModal(null)}>
+                    Keep it
+                  </button>
+                  <button className="primary" onClick={remove}>
+                    Clear session
+                  </button>
+                </div>
+              </>
+            ) : (
+              <>
+                <h2 id="modal-title">About Between</h2>
+                <p>
+                  Between helps you review your conversations and the messages behind each finding.
+                </p>
+                <p>
+                  This version uses calculated statistics and keyword matches. Accounts, contextual
+                  interpretation and cloud storage are not connected.
+                </p>
+              </>
+            )}
+          </section>
+        </div>
+      )}
+      {evidence && (
+        <div
+          className="overlay"
+          onClick={(e) => {
+            if (e.target === e.currentTarget) setEvidence(null);
+          }}
+        >
+          <section
+            className="modal evidence-modal"
+            role="dialog"
+            aria-modal="true"
+            aria-label="Source evidence"
+            tabIndex={-1}
+            ref={(el) => el?.focus()}
+            onKeyDown={(e) => {
+              if (e.key === "Escape") setEvidence(null);
+              if (e.key === "Tab") {
+                const els = [...e.currentTarget.querySelectorAll("button")];
+                if (e.shiftKey && document.activeElement === els[0]) {
+                  e.preventDefault();
+                  els.at(-1)?.focus();
+                } else if (!e.shiftKey && document.activeElement === els.at(-1)) {
+                  e.preventDefault();
+                  els[0]?.focus();
+                }
+              }
+            }}
+          >
+            <button
+              className="close icon-button"
+              aria-label="Close evidence"
+              onClick={() => setEvidence(null)}
+            >
+              <X size={20} />
+            </button>
+            <div className="eyebrow">BACK TO THE WORDS</div>
+            <h2>Source messages</h2>
+            <p>
+              Highlighted messages support this observation. Neighbouring messages may add context
+              or complicate it.
+            </p>
+            {messages
+              .filter(
+                (m, i) =>
+                  evidence.includes(m.id) ||
+                  evidence.includes(messages[i - 1]?.id) ||
+                  evidence.includes(messages[i + 1]?.id),
+              )
+              .map((m) => (
+                <div
+                  className={"source-message " + (evidence.includes(m.id) ? "highlighted" : "")}
+                  key={m.id}
+                >
+                  <div>
+                    <strong>{m.speaker}</strong>
+                    <time>{m.date ? new Date(m.date).toLocaleString() : "No timestamp"}</time>
+                    <p>{m.body}</p>
+                    <small>
+                      {m.id} ·{" "}
+                      {evidence.includes(m.id) ? "Referenced excerpt" : "Surrounding context"}
+                    </small>
+                  </div>
+                </div>
+              ))}
+            <button className="secondary" onClick={() => setEvidence(null)}>
+              Return to report <ArrowRight size={15} />
+            </button>
+          </section>
+        </div>
+      )}
+    </div>
+  );
 }
