@@ -97,8 +97,8 @@ export default function ExportPanel({ conversation }) {
         <Sheet label="Your report" onClose={() => setPreview(false)}>
           <div className="document-preview-toolbar">
             <p>
-              Choose “Save as PDF” in the print dialog. Use A4, turn off browser headers and
-              footers, and enable background graphics for full colour.
+              Choose “Save as PDF” in the print dialog. Use the landscape page size, turn off
+              browser headers and footers, and enable background graphics for full colour.
             </p>
             <button className="primary" onClick={() => window.print()}>
               Print / Save PDF

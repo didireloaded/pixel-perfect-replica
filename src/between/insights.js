@@ -17,6 +17,7 @@ export function explorePatterns(conversation) {
       title,
       body,
       kind: "Source-linked observation",
+      matchedCount: support.length,
       ids: support.slice(0, 4).map((m) => m.id),
       counterIds: contradictions.slice(0, 3).map((m) => m.id),
       limit,
