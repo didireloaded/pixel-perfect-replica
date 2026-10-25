@@ -1,24 +1,37 @@
 import { createFileRoute } from "@tanstack/react-router";
+import { lazy, Suspense, useEffect, useState } from "react";
 
-// No head() here: the home route inherits title/description/og/twitter from
-// __root.tsx, and ships no og:image so serve-time hosting can inject the
-// project's social preview (explicit og:image or latest screenshot).
+// The app reads browser-only state (localStorage, navigator) during render,
+// so it is loaded only after hydration.
+const BetweenApp = lazy(() => import("../between/App.jsx"));
+
 export const Route = createFileRoute("/")({
+  head: () => ({
+    meta: [
+      { title: "Between — Chat Insights" },
+      { name: "description", content: "Import a WhatsApp chat and review measured, evidence-linked insights on your device." },
+      { property: "og:title", content: "Between — Chat Insights" },
+      { property: "og:description", content: "Import a WhatsApp chat and review measured, evidence-linked insights on your device." },
+      { property: "og:type", content: "website" },
+      { name: "twitter:card", content: "summary" },
+    ],
+  }),
   component: Index,
 });
 
-// IMPORTANT: Replace this placeholder. See ./README.md for routing conventions.
 function Index() {
+  const [ready, setReady] = useState(false);
+  useEffect(() => {
+    setReady(true);
+    import("../between/register-sw.js").then((m) => {
+      if (document.readyState === "complete") m.registerServiceWorker();
+      else window.addEventListener("load", () => m.registerServiceWorker(), { once: true });
+    });
+  }, []);
+  if (!ready) return null;
   return (
-    <div
-      className="flex min-h-screen items-center justify-center"
-      style={{ backgroundColor: "#fcfbf8" }}
-    >
-      <img
-        data-lovable-blank-page-placeholder="REMOVE_THIS"
-        src="https://cdn.gpteng.co/blank-app-v1.svg"
-        alt="Your app will live here!"
-      />
-    </div>
+    <Suspense fallback={null}>
+      <BetweenApp />
+    </Suspense>
   );
 }

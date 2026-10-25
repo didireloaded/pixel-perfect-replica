@@ -5,13 +5,14 @@
   "type": "module",
   "scripts": {
     "dev": "vite dev",
-    "build": "vite build",
+    "build": "vite build && node scripts/build-sw.js",
     "build:dev": "vite build --mode development",
     "preview": "vite preview",
     "lint": "eslint .",
     "format": "prettier --write .",
     "test": "vitest run",
-    "test:watch": "vitest"
+    "test:watch": "vitest",
+    "test:between": "node --test tests/*.test.js"
   },
   "overrides": {
     "rolldown": "1.2.1"
@@ -54,8 +55,9 @@
     "cmdk": "^1.1.1",
     "date-fns": "^4.1.0",
     "embla-carousel-react": "^8.6.0",
+    "fflate": "^0.8.3",
     "input-otp": "^1.4.2",
-    "lucide-react": "^0.575.0",
+    "lucide-react": "^1.61.0",
     "react": "^19.2.0",
     "react-day-picker": "^9.14.0",
     "react-dom": "^19.2.0",
